@@ -7,8 +7,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,13 +33,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -96,7 +97,6 @@ fun ProfileScreen(
     var profile by remember { mutableStateOf<ResponseUserData?>(null) }
     var authToken by remember { mutableStateOf<String?>(null) }
     var photoTimestamp by remember { mutableStateOf(System.currentTimeMillis().toString()) }
-
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -117,26 +117,23 @@ fun ProfileScreen(
     LaunchedEffect(uiStateTodo.profile) {
         if (uiStateTodo.profile !is ProfileUIState.Loading) {
             isLoading = false
-            if (uiStateTodo.profile is ProfileUIState.Success) {
+            if (uiStateTodo.profile is ProfileUIState.Success)
                 profile = (uiStateTodo.profile as ProfileUIState.Success).data
-            } else {
+            else
                 RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
-            }
         }
     }
 
     LaunchedEffect(uiStateTodo.profileChange) {
         when (val state = uiStateTodo.profileChange) {
             is TodoActionUIState.Success -> {
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message) }
+                todoViewModel.resetProfileChange()
                 todoViewModel.getProfile(authToken ?: "")
             }
             is TodoActionUIState.Error -> {
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message) }
+                todoViewModel.resetProfileChange()
             }
             else -> {}
         }
@@ -145,14 +142,12 @@ fun ProfileScreen(
     LaunchedEffect(uiStateTodo.profileChangePassword) {
         when (val state = uiStateTodo.profileChangePassword) {
             is TodoActionUIState.Success -> {
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message) }
+                todoViewModel.resetProfileChangePassword()
             }
             is TodoActionUIState.Error -> {
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message) }
+                todoViewModel.resetProfileChangePassword()
             }
             else -> {}
         }
@@ -162,53 +157,34 @@ fun ProfileScreen(
         when (val state = uiStateTodo.profileChangePhoto) {
             is TodoActionUIState.Success -> {
                 photoTimestamp = System.currentTimeMillis().toString()
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.SUCCESS, state.message) }
+                todoViewModel.resetProfileChangePhoto()
                 todoViewModel.getProfile(authToken ?: "")
             }
             is TodoActionUIState.Error -> {
-                snackbarHost?.let {
-                    SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message)
-                }
+                snackbarHost?.let { SuspendHelper.showSnackBar(it, SuspendHelper.SnackBarType.ERROR, state.message) }
+                todoViewModel.resetProfileChangePhoto()
             }
             else -> {}
         }
     }
 
-    fun onLogout(token: String) {
-        isLoading = true
-        authViewModel.logout(token)
-    }
-
     LaunchedEffect(uiStateAuth.authLogout) {
-        if (uiStateAuth.authLogout !is AuthLogoutUIState.Loading) {
+        if (uiStateAuth.authLogout !is AuthLogoutUIState.Loading)
             RouteHelper.to(navController, ConstHelper.RouteNames.AuthLogin.path, true)
-        }
     }
 
-    if (isLoading || profile == null) {
-        LoadingUI()
-        return
-    }
+    if (isLoading || profile == null) { LoadingUI(); return }
 
     val menuItems = listOf(
-        TopAppBarMenuItem(
-            text = "Profile",
-            icon = Icons.Filled.Person,
-            route = ConstHelper.RouteNames.Profile.path
-        ),
-        TopAppBarMenuItem(
-            text = "Logout",
-            icon = Icons.AutoMirrored.Filled.Logout,
-            route = null,
-            onClick = { onLogout(authToken ?: "") }
-        )
+        TopAppBarMenuItem(text = "Profile", icon = Icons.Filled.Person, route = ConstHelper.RouteNames.Profile.path),
+        TopAppBarMenuItem(text = "Logout", icon = Icons.AutoMirrored.Filled.Logout, route = null,
+            onClick = { authViewModel.logout(authToken ?: "") })
     )
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBarComponent(
@@ -246,205 +222,133 @@ fun ProfileUI(
     onSaveProfile: (name: String, username: String, about: String) -> Unit = { _, _, _ -> },
     onChangePassword: (currentPw: String, newPw: String) -> Unit = { _, _ -> }
 ) {
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showEditSheet by remember { mutableStateOf(false) }
     var showPasswordSheet by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri?.let {
-            selectedPhotoUri = it
-            onChangePhoto(it)
-        }
-    }
+    ) { uri: Uri? -> uri?.let { onChangePhoto(it) } }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // Header Profile
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 32.dp, bottom = 16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Foto Profil with tap to change
-                Box(
-                    modifier = Modifier.size(110.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    AsyncImage(
-                        model = selectedPhotoUri
-                            ?: ToolsHelper.getUserImage(profile.id, photoTimestamp),
-                        contentDescription = "Photo Profil",
-                        placeholder = painterResource(R.drawable.img_placeholder),
-                        error = painterResource(R.drawable.img_placeholder),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(110.dp)
-                            .clip(CircleShape)
-                            .border(3.dp, Color.White, CircleShape)
-                            .clickable {
-                                imagePicker.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            }
-                    )
-
-                    // Camera icon overlay
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable {
-                                imagePicker.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.CameraAlt,
-                            contentDescription = "Ubah foto",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Ketuk foto untuk mengubah",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = profile.name,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "@${profile.username}",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (profile.about.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = profile.about,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 32.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Action buttons
+        // === Header foto ===
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                .padding(top = 32.dp, bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Edit Profile button
+            Box(modifier = Modifier.size(110.dp), contentAlignment = Alignment.BottomEnd) {
+                AsyncImage(
+                    model = ToolsHelper.getUserImage(profile.id, photoTimestamp),
+                    contentDescription = "Photo Profil",
+                    placeholder = painterResource(R.drawable.img_placeholder),
+                    error = painterResource(R.drawable.img_placeholder),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        .clickable {
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable {
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = "Ubah foto",
+                        tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Ketuk foto untuk mengubah", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(profile.name, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("@${profile.username}", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            if (profile.about.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = profile.about,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // === Action cards ===
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showEditSheet = true },
+                modifier = Modifier.fillMaxWidth().clickable { showEditSheet = true },
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(4.dp),
+                elevation = CardDefaults.cardElevation(3.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
+                        modifier = Modifier.size(40.dp).clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.size(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Ubah Informasi Akun",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Nama, username, dan tentang",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Column {
+                        Text("Ubah Informasi Akun", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold)
+                        Text("Nama, username, dan tentang", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
 
-            // Change password button
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showPasswordSheet = true },
+                modifier = Modifier.fillMaxWidth().clickable { showPasswordSheet = true },
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(4.dp),
+                elevation = CardDefaults.cardElevation(3.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
+                        modifier = Modifier.size(40.dp).clip(CircleShape)
                             .background(MaterialTheme.colorScheme.tertiaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(Icons.Filled.Lock, null, tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.size(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Ubah Kata Sandi",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Perbarui kata sandi akun Anda",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Column {
+                        Text("Ubah Kata Sandi", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold)
+                        Text("Perbarui kata sandi akun Anda", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -453,38 +357,28 @@ fun ProfileUI(
         Spacer(modifier = Modifier.height(24.dp))
     }
 
-    // Edit Profile Bottom Sheet
     if (showEditSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showEditSheet = false },
-            sheetState = sheetState,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
         ) {
             EditProfileSheetContent(
                 profile = profile,
-                onSave = { name, username, about ->
-                    onSaveProfile(name, username, about)
-                    showEditSheet = false
-                },
+                onSave = { name, username, about -> onSaveProfile(name, username, about); showEditSheet = false },
                 onDismiss = { showEditSheet = false }
             )
         }
     }
 
-    // Change Password Bottom Sheet
     if (showPasswordSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showPasswordSheet = false },
-            sheetState = sheetState,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
         ) {
             ChangePasswordSheetContent(
-                onSave = { currentPw, newPw ->
-                    onChangePassword(currentPw, newPw)
-                    showPasswordSheet = false
-                },
+                onSave = { currentPw, newPw -> onChangePassword(currentPw, newPw); showPasswordSheet = false },
                 onDismiss = { showPasswordSheet = false }
             )
         }
@@ -501,79 +395,44 @@ fun EditProfileSheetContent(
     var username by remember { mutableStateOf(profile.username) }
     var about by remember { mutableStateOf(profile.about) }
 
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-        focusedLabelColor = MaterialTheme.colorScheme.primary
-    )
-
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 32.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(
-            text = "Ubah Informasi Akun",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Divider()
+        Text("Ubah Informasi Akun", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        HorizontalDivider()
 
         OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Nama") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
+            value = name, onValueChange = { name = it },
+            label = { Text("Nama") }, modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = RoundedCornerShape(12.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
         )
-
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
+            value = username, onValueChange = { username = it },
+            label = { Text("Username") }, modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = RoundedCornerShape(12.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
         )
-
         OutlinedTextField(
-            value = about,
-            onValueChange = { about = it },
+            value = about, onValueChange = { about = it },
             label = { Text("Tentang") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
-            maxLines = 4,
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+            maxLines = 4, shape = RoundedCornerShape(12.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
         )
 
-        androidx.compose.foundation.layout.Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Batal")
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Batal") }
             Button(
                 onClick = { onSave(name, username, about) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 enabled = name.isNotEmpty() && username.isNotEmpty()
             ) {
-                Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Save, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.size(6.dp))
                 Text("Simpan")
             }
@@ -591,115 +450,59 @@ fun ChangePasswordSheetContent(
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
 
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-        focusedLabelColor = MaterialTheme.colorScheme.primary
-    )
-
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 32.dp),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(
-            text = "Ubah Kata Sandi",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        Divider()
+        Text("Ubah Kata Sandi", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        HorizontalDivider()
 
         OutlinedTextField(
-            value = currentPassword,
-            onValueChange = { currentPassword = it },
-            label = { Text("Kata Sandi Saat Ini") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
-            singleLine = true,
+            value = currentPassword, onValueChange = { currentPassword = it },
+            label = { Text("Kata Sandi Saat Ini") }, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, shape = RoundedCornerShape(12.dp),
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next
-            )
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
         )
-
         OutlinedTextField(
-            value = newPassword,
-            onValueChange = { newPassword = it },
-            label = { Text("Kata Sandi Baru") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
-            singleLine = true,
+            value = newPassword, onValueChange = { newPassword = it },
+            label = { Text("Kata Sandi Baru") }, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, shape = RoundedCornerShape(12.dp),
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next
-            )
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
         )
-
         OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Konfirmasi Kata Sandi Baru") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = fieldColors,
-            singleLine = true,
+            value = confirmPassword, onValueChange = { confirmPassword = it },
+            label = { Text("Konfirmasi Kata Sandi Baru") }, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, shape = RoundedCornerShape(12.dp),
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done
-            )
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done)
         )
 
         if (errorMessage.isNotEmpty()) {
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = errorMessage, color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall)
         }
 
-        androidx.compose.foundation.layout.Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Batal")
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Batal") }
             Button(
                 onClick = {
                     when {
-                        currentPassword.isEmpty() || newPassword.isEmpty() || confirmPassword.isEmpty() -> {
+                        currentPassword.isEmpty() || newPassword.isEmpty() || confirmPassword.isEmpty() ->
                             errorMessage = "Semua field wajib diisi"
-                        }
-                        newPassword != confirmPassword -> {
+                        newPassword != confirmPassword ->
                             errorMessage = "Kata sandi baru tidak cocok"
-                        }
-                        newPassword.length < 6 -> {
+                        newPassword.length < 6 ->
                             errorMessage = "Kata sandi minimal 6 karakter"
-                        }
-                        else -> {
-                            errorMessage = ""
-                            onSave(currentPassword, newPassword)
-                        }
+                        else -> { errorMessage = ""; onSave(currentPassword, newPassword) }
                     }
                 },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Save, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.size(6.dp))
                 Text("Simpan")
             }

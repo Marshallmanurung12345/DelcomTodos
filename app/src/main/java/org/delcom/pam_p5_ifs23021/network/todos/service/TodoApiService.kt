@@ -2,31 +2,11 @@ package org.delcom.pam_p5_ifs23021.network.todos.service
 
 import okhttp3.MultipartBody
 import org.delcom.pam_p5_ifs23021.network.data.ResponseMessage
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestAuthLogin
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestAuthLogout
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestAuthRefreshToken
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestAuthRegister
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestTodo
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestUserChange
-import org.delcom.pam_p5_ifs23021.network.todos.data.RequestUserChangePassword
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseAuthLogin
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseAuthRegister
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodo
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoAdd
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodos
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseUser
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Part
-import retrofit2.http.Path
-import retrofit2.http.Query
+import org.delcom.pam_p5_ifs23021.network.todos.data.*
+import retrofit2.http.*
 
 interface TodoApiService {
+
     // ----------------------------------
     // Auth
     // ----------------------------------
@@ -63,13 +43,13 @@ interface TodoApiService {
     @PUT("users/me")
     suspend fun putUserMe(
         @Header("Authorization") authToken: String,
-        @Body request: RequestUserChange,
+        @Body request: RequestUserChange
     ): ResponseMessage<String?>
 
     @PUT("users/me/password")
     suspend fun putUserMePassword(
         @Header("Authorization") authToken: String,
-        @Body request: RequestUserChangePassword,
+        @Body request: RequestUserChangePassword
     ): ResponseMessage<String?>
 
     @Multipart
@@ -87,10 +67,10 @@ interface TodoApiService {
     suspend fun getTodos(
         @Header("Authorization") authToken: String,
         @Query("search") search: String? = null,
-        @Query("isDone") isDone: Boolean? = null,
+        @Query("is_done") isDone: Boolean? = null,
         @Query("priority") priority: String? = null,
         @Query("page") page: Int? = null,
-        @Query("perPage") perPage: Int? = null
+        @Query("per_page") perPage: Int? = null
     ): ResponseMessage<ResponseTodos?>
 
     @POST("todos")
@@ -99,30 +79,30 @@ interface TodoApiService {
         @Body request: RequestTodo
     ): ResponseMessage<ResponseTodoAdd?>
 
-    @GET("todos/{todoId}")
+    @GET("todos/{todo_id}")
     suspend fun getTodoById(
         @Header("Authorization") authToken: String,
-        @Path("todoId") todoId: String
+        @Path("todo_id") todoId: String
     ): ResponseMessage<ResponseTodo?>
 
-    @PUT("todos/{todoId}")
+    @PUT("todos/{todo_id}")
     suspend fun putTodo(
         @Header("Authorization") authToken: String,
-        @Path("todoId") todoId: String,
+        @Path("todo_id") todoId: String,
         @Body request: RequestTodo
     ): ResponseMessage<String?>
 
     @Multipart
-    @PUT("todos/{todoId}/cover")
+    @PUT("todos/{todo_id}/cover")
     suspend fun putTodoCover(
         @Header("Authorization") authToken: String,
-        @Path("todoId") todoId: String,
+        @Path("todo_id") todoId: String,
         @Part file: MultipartBody.Part
     ): ResponseMessage<String?>
 
-    @DELETE("todos/{todoId}")
+    @DELETE("todos/{todo_id}")
     suspend fun deleteTodo(
         @Header("Authorization") authToken: String,
-        @Path("todoId") todoId: String
+        @Path("todo_id") todoId: String
     ): ResponseMessage<String?>
 }

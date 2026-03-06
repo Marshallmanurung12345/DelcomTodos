@@ -67,7 +67,6 @@ import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthViewModel
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodoActionUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodoUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodoViewModel
-import kotlin.time.Clock
 
 @Composable
 fun TodosDetailScreen(
@@ -83,7 +82,7 @@ fun TodosDetailScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isConfirmDelete by remember { mutableStateOf(false) }
     var todo by remember { mutableStateOf<ResponseTodoData?>(null) }
-    val authToken = remember { mutableStateOf<String?>(null) }
+    var authToken by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         isLoading = true
@@ -91,11 +90,11 @@ fun TodosDetailScreen(
             RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
-        authToken.value = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-        uiStateTodo.todoDelete = TodoActionUIState.Loading
-        uiStateTodo.todoChangeCover = TodoActionUIState.Loading
-        uiStateTodo.todo = TodoUIState.Loading
-        todoViewModel.getTodoById(authToken.value!!, todoId)
+        authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
+        todoViewModel.resetTodoDelete()
+        todoViewModel.resetTodoChangeCover()
+        todoViewModel.resetTodoDetail()
+        todoViewModel.getTodoById(authToken!!, todoId)
     }
 
     LaunchedEffect(uiStateTodo.todo) {
@@ -109,19 +108,11 @@ fun TodosDetailScreen(
         }
     }
 
-    fun onDelete() {
-        if (authToken.value == null) return
-        uiStateTodo.todoDelete = TodoActionUIState.Loading
-        isLoading = true
-        todoViewModel.deleteTodo(authToken.value!!, todoId)
-    }
-
     LaunchedEffect(uiStateTodo.todoDelete) {
         when (val state = uiStateTodo.todoDelete) {
             is TodoActionUIState.Success -> {
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
                 RouteHelper.to(navController, ConstHelper.RouteNames.Todos.path, true)
-                uiStateTodo.todo = TodoUIState.Loading
                 isLoading = false
             }
             is TodoActionUIState.Error -> {
@@ -132,18 +123,9 @@ fun TodosDetailScreen(
         }
     }
 
-    fun onChangeCover(context: Context, file: Uri) {
-        if (authToken.value == null) return
-        uiStateTodo.todoChangeCover = TodoActionUIState.Loading
-        isLoading = true
-        val filePart = uriToMultipart(context, file, "file")
-        todoViewModel.putTodoCover(authToken = authToken.value!!, todoId = todoId, file = filePart)
-    }
-
     LaunchedEffect(uiStateTodo.todoChangeCover) {
         when (val state = uiStateTodo.todoChangeCover) {
             is TodoActionUIState.Success -> {
-                if (todo != null) todo!!.updatedAt = Clock.System.now().toString()
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
                 isLoading = false
             }
@@ -155,35 +137,26 @@ fun TodosDetailScreen(
         }
     }
 
-    if (isLoading || todo == null) {
-        LoadingUI()
-        return
-    }
+    if (isLoading || todo == null) { LoadingUI(); return }
 
     val detailMenuItems = listOf(
         TopAppBarMenuItem(
-            text = "Ubah Data",
-            icon = Icons.Filled.Edit,
-            route = null,
+            text = "Ubah Data", icon = Icons.Filled.Edit, route = null,
             onClick = {
-                RouteHelper.to(
-                    navController,
-                    ConstHelper.RouteNames.TodosEdit.path.replace("{todoId}", todo!!.id),
-                )
+                RouteHelper.to(navController,
+                    ConstHelper.RouteNames.TodosEdit.path.replace("{todoId}", todo!!.id))
             }
         ),
         TopAppBarMenuItem(
-            text = "Hapus Data",
-            icon = Icons.Filled.Delete,
-            route = null,
+            text = "Hapus Data", icon = Icons.Filled.Delete, route = null,
             onClick = { isConfirmDelete = true },
             isDestructive = true
-        ),
+        )
     )
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBarComponent(
@@ -193,7 +166,16 @@ fun TodosDetailScreen(
             customMenuItems = detailMenuItems
         )
         Box(modifier = Modifier.weight(1f)) {
-            TodosDetailUI(todo = todo!!, onChangeCover = ::onChangeCover)
+            val context = LocalContext.current
+            TodosDetailUI(
+                todo = todo!!,
+                onChangeCover = { ctx, uri ->
+                    isLoading = true
+                    todoViewModel.resetTodoChangeCover()
+                    val filePart = uriToMultipart(ctx, uri, "file")
+                    todoViewModel.putTodoCover(authToken = authToken!!, todoId = todoId, file = filePart)
+                }
+            )
             BottomDialog(
                 type = BottomDialogType.ERROR,
                 show = isConfirmDelete,
@@ -201,7 +183,11 @@ fun TodosDetailScreen(
                 title = "Konfirmasi Hapus Data",
                 message = "Apakah Anda yakin ingin menghapus data ini?",
                 confirmText = "Ya, Hapus",
-                onConfirm = { onDelete() },
+                onConfirm = {
+                    todoViewModel.resetTodoDelete()
+                    isLoading = true
+                    todoViewModel.deleteTodo(authToken!!, todoId)
+                },
                 cancelText = "Batal",
                 destructiveAction = true
             )
@@ -213,7 +199,7 @@ fun TodosDetailScreen(
 @Composable
 fun TodosDetailUI(
     todo: ResponseTodoData,
-    onChangeCover: (context: Context, file: Uri) -> Unit,
+    onChangeCover: (context: Context, file: Uri) -> Unit
 ) {
     var dataFile by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
@@ -225,126 +211,104 @@ fun TodosDetailUI(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
             .verticalScroll(rememberScrollState())
+            .padding(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(vertical = 16.dp)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxSize()
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .clickable {
+                        imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable {
-                            imagePicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = dataFile ?: ToolsHelper.getTodoImage(todo.id, todo.updatedAt),
-                        contentDescription = "Cover Todo",
-                        placeholder = painterResource(R.drawable.img_placeholder),
-                        error = painterResource(R.drawable.img_placeholder),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = if (dataFile == null) "Sentuh cover untuk mengubah" else "Gambar baru dipilih",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+                AsyncImage(
+                    model = dataFile ?: ToolsHelper.getTodoImage(todo.id, todo.updatedAt),
+                    contentDescription = "Cover Todo",
+                    placeholder = painterResource(R.drawable.img_placeholder),
+                    error = painterResource(R.drawable.img_placeholder),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (dataFile != null) {
-                    Button(
-                        onClick = { onChangeCover(context, dataFile!!) },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(48.dp).fillMaxWidth(0.7f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Simpan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = todo.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (dataFile == null) "Sentuh cover untuk mengubah" else "Gambar baru dipilih",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
 
-            // Status + Priority badges
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (todo.isDone) MaterialTheme.colorScheme.secondaryContainer
-                            else MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (todo.isDone) "Selesai" else "Belum Selesai",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (todo.isDone)
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        else
-                            MaterialTheme.colorScheme.onTertiaryContainer
+            if (dataFile != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onChangeCover(context, dataFile!!) },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(0.7f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White
                     )
-                }
-
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(8.dp))
-
-                PriorityBadge(priority = todo.priority)
+                ) { Text("Simpan Cover", fontWeight = FontWeight.Bold) }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = todo.title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (todo.isDone) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (todo.isDone) "Selesai" else "Belum Selesai",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (todo.isDone) MaterialTheme.colorScheme.onSecondaryContainer
+                    else MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+            Spacer(modifier = Modifier.size(8.dp))
+            PriorityBadge(priority = todo.priority)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             shape = MaterialTheme.shapes.medium,
             elevation = CardDefaults.cardElevation(4.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(
+            Text(
+                text = todo.description,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.fillMaxWidth().padding(16.dp)
-            ) {
-                Text(
-                    text = todo.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
+            )
         }
     }
 }

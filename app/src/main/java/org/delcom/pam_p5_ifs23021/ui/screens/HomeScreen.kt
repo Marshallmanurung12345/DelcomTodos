@@ -1,12 +1,12 @@
 package org.delcom.pam_p5_ifs23021.ui.screens
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,10 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import org.delcom.pam_p5_ifs23021.helper.ConstHelper
@@ -41,7 +41,6 @@ import org.delcom.pam_p5_ifs23021.ui.components.LoadingUI
 import org.delcom.pam_p5_ifs23021.ui.components.StatusCard
 import org.delcom.pam_p5_ifs23021.ui.components.TopAppBarComponent
 import org.delcom.pam_p5_ifs23021.ui.components.TopAppBarMenuItem
-import org.delcom.pam_p5_ifs23021.ui.theme.DelcomTheme
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthActionUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthLogoutUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthUIState
@@ -67,7 +66,6 @@ fun HomeScreen(
         if (isLoading) return@LaunchedEffect
         isLoading = true
         isFreshToken = true
-        uiStateAuth.authLogout = AuthLogoutUIState.Loading
         authViewModel.loadTokenFromPreferences()
     }
 
@@ -88,7 +86,6 @@ fun HomeScreen(
                     val newToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
                     if (authToken != newToken) {
                         authToken = newToken
-                        // Load todos for stats
                         todoViewModel.getAllTodos(newToken)
                     }
                     isLoading = false
@@ -132,7 +129,7 @@ fun HomeScreen(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBarComponent(
@@ -156,13 +153,9 @@ fun HomeUI(todos: List<ResponseTodoData> = emptyList()) {
 
     Column(modifier = Modifier.padding(top = 16.dp)) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
             Text(
                 text = "📋 My Todos",
@@ -170,43 +163,17 @@ fun HomeUI(todos: List<ResponseTodoData> = emptyList()) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
+                modifier = Modifier.fillMaxWidth().padding(20.dp)
             )
         }
-
         Spacer(modifier = Modifier.height(12.dp))
-
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            StatusCard(
-                title = "Total",
-                value = totalTodos.toString(),
-                icon = Icons.AutoMirrored.Filled.List
-            )
-            StatusCard(
-                title = "Selesai",
-                value = doneTodos.toString(),
-                icon = Icons.Default.CheckCircle
-            )
-            StatusCard(
-                title = "Belum",
-                value = pendingTodos.toString(),
-                icon = Icons.Default.Schedule
-            )
+            StatusCard(title = "Total", value = totalTodos.toString(), icon = Icons.AutoMirrored.Filled.List)
+            StatusCard(title = "Selesai", value = doneTodos.toString(), icon = Icons.Default.CheckCircle)
+            StatusCard(title = "Belum", value = pendingTodos.toString(), icon = Icons.Default.Schedule)
         }
-    }
-}
-
-@Preview(showBackground = true, name = "Light Mode")
-@Composable
-fun PreviewHomeUI() {
-    DelcomTheme {
-        HomeUI()
     }
 }

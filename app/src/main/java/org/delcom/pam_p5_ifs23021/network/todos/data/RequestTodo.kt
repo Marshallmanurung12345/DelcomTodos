@@ -5,7 +5,11 @@ import kotlinx.serialization.Serializable
 enum class TodoPriority(val label: String) {
     LOW("Low"),
     MEDIUM("Medium"),
-    HIGH("High")
+    HIGH("High");
+
+    companion object {
+        fun allValues() = listOf(LOW, MEDIUM, HIGH)
+    }
 }
 
 @Serializable

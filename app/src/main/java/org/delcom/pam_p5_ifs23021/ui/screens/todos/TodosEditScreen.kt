@@ -23,7 +23,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -73,7 +72,7 @@ fun TodosEditScreen(
 
     var isLoading by remember { mutableStateOf(false) }
     var todo by remember { mutableStateOf<ResponseTodoData?>(null) }
-    val authToken = remember { mutableStateOf<String?>(null) }
+    var authToken by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         isLoading = true
@@ -81,34 +80,21 @@ fun TodosEditScreen(
             RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
-        authToken.value = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-        uiStateTodo.todo = TodoUIState.Loading
-        uiStateTodo.todoChange = TodoActionUIState.Loading
-        todoViewModel.getTodoById(authToken.value!!, todoId)
+        authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
+        todoViewModel.resetTodoDetail()
+        todoViewModel.resetTodoChange()
+        todoViewModel.getTodoById(authToken!!, todoId)
     }
 
     LaunchedEffect(uiStateTodo.todo) {
         if (uiStateTodo.todo !is TodoUIState.Loading) {
+            isLoading = false
             if (uiStateTodo.todo is TodoUIState.Success) {
                 todo = (uiStateTodo.todo as TodoUIState.Success).data
-                isLoading = false
             } else {
                 RouteHelper.back(navController)
-                isLoading = false
             }
         }
-    }
-
-    fun onSave(title: String, description: String, isDone: Boolean, priority: String) {
-        isLoading = true
-        todoViewModel.putTodo(
-            authToken = authToken.value!!,
-            todoId = todoId,
-            title = title,
-            description = description,
-            isDone = isDone,
-            priority = priority
-        )
     }
 
     LaunchedEffect(uiStateTodo.todoChange) {
@@ -131,14 +117,11 @@ fun TodosEditScreen(
         }
     }
 
-    if (isLoading || todo == null) {
-        LoadingUI()
-        return
-    }
+    if (isLoading || todo == null) { LoadingUI(); return }
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBarComponent(
@@ -147,8 +130,21 @@ fun TodosEditScreen(
             showBackButton = true,
             showMenu = false
         )
-        Box(modifier = Modifier.weight(1f)) {
-            TodosEditUI(todo = todo!!, onSave = ::onSave)
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            TodosEditUI(
+                todo = todo!!,
+                onSave = { title, description, isDone, priority ->
+                    isLoading = true
+                    todoViewModel.putTodo(
+                        authToken = authToken!!,
+                        todoId = todoId,
+                        title = title,
+                        description = description,
+                        isDone = isDone,
+                        priority = priority
+                    )
+                }
+            )
         }
         BottomNavComponent(navController = navController)
     }
@@ -165,99 +161,63 @@ fun TodosEditUI(
     var dataIsDone by remember { mutableStateOf(todo.isDone) }
     var dataPriority by remember { mutableStateOf(todo.priority.ifEmpty { TodoPriority.LOW.name }) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Title
-        OutlinedTextField(
-            value = dataTitle,
-            onValueChange = { dataTitle = it },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                focusedBorderColor = MaterialTheme.colorScheme.primaryContainer,
-                cursorColor = MaterialTheme.colorScheme.primaryContainer,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            label = { Text("Title", color = MaterialTheme.colorScheme.onPrimaryContainer) },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-        )
-
-        // Is Done
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(text = "Is Done?", color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = dataIsDone, onClick = { dataIsDone = true })
-                Text("Yes")
-                Spacer(modifier = Modifier.width(16.dp))
-                RadioButton(selected = !dataIsDone, onClick = { dataIsDone = false })
-                Text("No")
-            }
-        }
-
-        // Priority
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Prioritas",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedTextField(
+                value = dataTitle,
+                onValueChange = { dataTitle = it },
+                label = { Text("Title") },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TodoPriority.entries.forEach { priority ->
-                    val (chipColor, _) = priorityColors(priority.name)
-                    FilterChip(
-                        selected = dataPriority.uppercase() == priority.name.uppercase(),
-                        onClick = { dataPriority = priority.name },
-                        label = {
-                            Text(
-                                priority.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = chipColor,
-                            selectedLabelColor = Color.White
-                        )
-                    )
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next)
+            )
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Status", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = dataIsDone, onClick = { dataIsDone = true })
+                    Text("Selesai")
+                    Spacer(modifier = Modifier.width(16.dp))
+                    RadioButton(selected = !dataIsDone, onClick = { dataIsDone = false })
+                    Text("Belum")
                 }
             }
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Prioritas", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TodoPriority.values().forEach { priority ->
+                        val color = priorityColor(priority.name)
+                        FilterChip(
+                            selected = dataPriority.uppercase() == priority.name,
+                            onClick = { dataPriority = priority.name },
+                            label = { Text(priority.label, fontWeight = FontWeight.SemiBold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = color,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = dataDescription,
+                onValueChange = { dataDescription = it },
+                label = { Text("Deskripsi") },
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                maxLines = 5, minLines = 3,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done)
+            )
         }
 
-        // Description
-        OutlinedTextField(
-            value = dataDescription,
-            onValueChange = { dataDescription = it },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                focusedBorderColor = MaterialTheme.colorScheme.primaryContainer,
-                cursorColor = MaterialTheme.colorScheme.primaryContainer,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            label = { Text("Deskripsi", color = MaterialTheme.colorScheme.onPrimaryContainer) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-            maxLines = 5,
-            minLines = 3
-        )
-
-        Spacer(modifier = Modifier.height(64.dp))
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
         FloatingActionButton(
             onClick = {
                 if (dataTitle.isEmpty()) {
@@ -274,7 +234,7 @@ fun TodosEditUI(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-            Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan Data")
+            Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan")
         }
     }
 

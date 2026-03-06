@@ -76,6 +76,16 @@ class TodoViewModel @Inject constructor(
         const val PAGE_SIZE = 10
     }
 
+    // Reset functions - gunakan ini sebagai ganti mutasi langsung di Screen
+    fun resetTodoAdd() { _uiState.update { it.copy(todoAdd = TodoActionUIState.Loading) } }
+    fun resetTodoChange() { _uiState.update { it.copy(todoChange = TodoActionUIState.Loading) } }
+    fun resetTodoDelete() { _uiState.update { it.copy(todoDelete = TodoActionUIState.Loading) } }
+    fun resetTodoChangeCover() { _uiState.update { it.copy(todoChangeCover = TodoActionUIState.Loading) } }
+    fun resetTodoDetail() { _uiState.update { it.copy(todo = TodoUIState.Loading) } }
+    fun resetProfileChange() { _uiState.update { it.copy(profileChange = TodoActionUIState.Loading) } }
+    fun resetProfileChangePassword() { _uiState.update { it.copy(profileChangePassword = TodoActionUIState.Loading) } }
+    fun resetProfileChangePhoto() { _uiState.update { it.copy(profileChangePhoto = TodoActionUIState.Loading) } }
+
     fun getProfile(authToken: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(profile = ProfileUIState.Loading) }
@@ -318,10 +328,6 @@ class TodoViewModel @Inject constructor(
                 state.copy(todoAdd = nextState)
             }
         }
-    }
-
-    fun resetTodoAdd() {
-        _uiState.update { it.copy(todoAdd = TodoActionUIState.Loading) }
     }
 
     fun getTodoById(authToken: String, todoId: String) {
