@@ -295,7 +295,7 @@ class TodoViewModel @Inject constructor(
 
     private fun List<ResponseTodoData>.sortedByPriority(): List<ResponseTodoData> {
         val priorityOrder = mapOf("HIGH" to 0, "MEDIUM" to 1, "LOW" to 2)
-        return sortedBy { priorityOrder[it.priority.uppercase()] ?: 2 }
+        return sortedBy { priorityOrder[(it.priority ?: "LOW").uppercase()] ?: 2 }
     }
 
     fun postTodo(

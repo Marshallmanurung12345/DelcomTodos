@@ -223,7 +223,7 @@ fun FilterBar(
         ) {
             Text("Status:", style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TodoStatusFilter.values().forEach { filter ->
+            TodoStatusFilter.entries.forEach { filter ->
                 FilterChip(
                     selected = statusFilter == filter,
                     onClick = { onStatusFilterChange(filter) },
@@ -242,7 +242,7 @@ fun FilterBar(
         ) {
             Text("Prioritas:", style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TodoPriorityFilter.values().forEach { filter ->
+            TodoPriorityFilter.entries.forEach { filter ->
                 val chipColor = when (filter) {
                     TodoPriorityFilter.HIGH -> Color(0xFFE53935)
                     TodoPriorityFilter.MEDIUM -> Color(0xFFFB8C00)
@@ -330,8 +330,9 @@ fun TodosUI(
 }
 
 @Composable
-fun PriorityBadge(priority: String) {
-    val (label, bgColor, textColor) = when (priority.uppercase()) {
+fun PriorityBadge(priority: String?) {
+    val safePriority = priority?.uppercase() ?: "LOW"
+    val (label, bgColor, textColor) = when (safePriority) {
         "HIGH" -> Triple("🔴 High", Color(0xFFFFEBEE), Color(0xFFB71C1C))
         "MEDIUM" -> Triple("🟠 Medium", Color(0xFFFFF3E0), Color(0xFFE65100))
         else -> Triple("🟢 Low", Color(0xFFE8F5E9), Color(0xFF1B5E20))
