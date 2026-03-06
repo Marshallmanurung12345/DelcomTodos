@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class RequestUserChange (
     val name: String,
-    val username: String
+    val username: String,
+    val about: String = ""
 )
 
 @Serializable

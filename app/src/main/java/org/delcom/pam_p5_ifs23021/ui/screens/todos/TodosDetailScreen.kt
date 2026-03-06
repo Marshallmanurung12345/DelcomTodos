@@ -7,8 +7,10 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,7 +46,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
@@ -53,7 +53,6 @@ import org.delcom.pam_p5_ifs23021.R
 import org.delcom.pam_p5_ifs23021.helper.ConstHelper
 import org.delcom.pam_p5_ifs23021.helper.RouteHelper
 import org.delcom.pam_p5_ifs23021.helper.SuspendHelper
-import org.delcom.pam_p5_ifs23021.helper.SuspendHelper.SnackBarType
 import org.delcom.pam_p5_ifs23021.helper.ToolsHelper
 import org.delcom.pam_p5_ifs23021.helper.ToolsHelper.uriToMultipart
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoData
@@ -63,7 +62,6 @@ import org.delcom.pam_p5_ifs23021.ui.components.BottomNavComponent
 import org.delcom.pam_p5_ifs23021.ui.components.LoadingUI
 import org.delcom.pam_p5_ifs23021.ui.components.TopAppBarComponent
 import org.delcom.pam_p5_ifs23021.ui.components.TopAppBarMenuItem
-import org.delcom.pam_p5_ifs23021.ui.theme.DelcomTheme
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthViewModel
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodoActionUIState
@@ -79,41 +77,27 @@ fun TodosDetailScreen(
     todoViewModel: TodoViewModel,
     todoId: String
 ) {
-    // Ambil data dari viewmodel
     val uiStateTodo by todoViewModel.uiState.collectAsState()
     val uiStateAuth by authViewModel.uiState.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
     var isConfirmDelete by remember { mutableStateOf(false) }
-
-    // Muat data
     var todo by remember { mutableStateOf<ResponseTodoData?>(null) }
     val authToken = remember { mutableStateOf<String?>(null) }
 
-    // Dapatkan tumbuhan berdasarkan ID
     LaunchedEffect(Unit) {
         isLoading = true
-
         if (uiStateAuth.auth !is AuthUIState.Success) {
-            RouteHelper.to(
-                navController,
-                ConstHelper.RouteNames.Home.path,
-                true
-            )
+            RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
-
         authToken.value = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-
-        // Reset status todo action
         uiStateTodo.todoDelete = TodoActionUIState.Loading
         uiStateTodo.todoChangeCover = TodoActionUIState.Loading
         uiStateTodo.todo = TodoUIState.Loading
-
         todoViewModel.getTodoById(authToken.value!!, todoId)
     }
 
-    // Picu ulang ketika data berubah
     LaunchedEffect(uiStateTodo.todo) {
         if (uiStateTodo.todo !is TodoUIState.Loading) {
             if (uiStateTodo.todo is TodoUIState.Success) {
@@ -126,12 +110,8 @@ fun TodosDetailScreen(
     }
 
     fun onDelete() {
-        if (authToken.value == null) {
-            return
-        }
-
+        if (authToken.value == null) return
         uiStateTodo.todoDelete = TodoActionUIState.Loading
-
         isLoading = true
         todoViewModel.deleteTodo(authToken.value!!, todoId)
     }
@@ -139,87 +119,47 @@ fun TodosDetailScreen(
     LaunchedEffect(uiStateTodo.todoDelete) {
         when (val state = uiStateTodo.todoDelete) {
             is TodoActionUIState.Success -> {
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.SUCCESS,
-                    message = state.message
-                )
-                RouteHelper.to(
-                    navController,
-                    ConstHelper.RouteNames.Todos.path,
-                    true
-                )
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
+                RouteHelper.to(navController, ConstHelper.RouteNames.Todos.path, true)
                 uiStateTodo.todo = TodoUIState.Loading
                 isLoading = false
             }
-
             is TodoActionUIState.Error -> {
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.ERROR,
-                    message = state.message
-                )
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.ERROR, state.message)
                 isLoading = false
             }
-
             else -> {}
         }
     }
 
-    fun onChangeCover(
-        context: Context,
-        file: Uri
-    ) {
-        if (authToken.value == null) {
-            return
-        }
-
+    fun onChangeCover(context: Context, file: Uri) {
+        if (authToken.value == null) return
         uiStateTodo.todoChangeCover = TodoActionUIState.Loading
         isLoading = true
-
         val filePart = uriToMultipart(context, file, "file")
-
-        todoViewModel.putTodoCover(
-            authToken = authToken.value!!,
-            todoId = todoId,
-            file = filePart
-        )
+        todoViewModel.putTodoCover(authToken = authToken.value!!, todoId = todoId, file = filePart)
     }
 
     LaunchedEffect(uiStateTodo.todoChangeCover) {
         when (val state = uiStateTodo.todoChangeCover) {
             is TodoActionUIState.Success -> {
-                if(todo != null){
-                    todo!!.updatedAt = Clock.System.now().toString()
-                }
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.SUCCESS,
-                    message = state.message
-                )
+                if (todo != null) todo!!.updatedAt = Clock.System.now().toString()
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
                 isLoading = false
             }
-
             is TodoActionUIState.Error -> {
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.ERROR,
-                    message = state.message
-                )
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.ERROR, state.message)
                 isLoading = false
             }
-
             else -> {}
         }
     }
 
-    // Tampilkan halaman loading
     if (isLoading || todo == null) {
         LoadingUI()
         return
     }
 
-    // Menu item details
     val detailMenuItems = listOf(
         TopAppBarMenuItem(
             text = "Ubah Data",
@@ -228,8 +168,7 @@ fun TodosDetailScreen(
             onClick = {
                 RouteHelper.to(
                     navController,
-                    ConstHelper.RouteNames.TodosEdit.path
-                        .replace("{todoId}", todo!!.id),
+                    ConstHelper.RouteNames.TodosEdit.path.replace("{todoId}", todo!!.id),
                 )
             }
         ),
@@ -237,9 +176,8 @@ fun TodosDetailScreen(
             text = "Hapus Data",
             icon = Icons.Filled.Delete,
             route = null,
-            onClick = {
-                isConfirmDelete = true
-            }
+            onClick = { isConfirmDelete = true },
+            isDestructive = true
         ),
     )
 
@@ -247,26 +185,15 @@ fun TodosDetailScreen(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-    )
-    {
-        // Top App Bar
+    ) {
         TopAppBarComponent(
             navController = navController,
             title = todo!!.title,
             showBackButton = true,
             customMenuItems = detailMenuItems
         )
-        // Content
-        Box(
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            // Content UI
-            TodosDetailUI(
-                todo = todo!!,
-                onChangeCover = ::onChangeCover,
-            )
-            // Bottom Dialog to Confirmation Delete
+        Box(modifier = Modifier.weight(1f)) {
+            TodosDetailUI(todo = todo!!, onChangeCover = ::onChangeCover)
             BottomDialog(
                 type = BottomDialogType.ERROR,
                 show = isConfirmDelete,
@@ -274,14 +201,11 @@ fun TodosDetailScreen(
                 title = "Konfirmasi Hapus Data",
                 message = "Apakah Anda yakin ingin menghapus data ini?",
                 confirmText = "Ya, Hapus",
-                onConfirm = {
-                    onDelete()
-                },
+                onConfirm = { onDelete() },
                 cancelText = "Batal",
                 destructiveAction = true
             )
         }
-        // Bottom Nav
         BottomNavComponent(navController = navController)
     }
 }
@@ -296,30 +220,23 @@ fun TodosDetailUI(
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        dataFile = uri
-    }
+    ) { uri: Uri? -> dataFile = uri }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
-    )
-    {
-        // Gambar
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 16.dp)
-        )
-        {
+        ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = Modifier.fillMaxSize()
             ) {
-                // Cover Image
                 Box(
                     modifier = Modifier
                         .size(150.dp)
@@ -327,9 +244,7 @@ fun TodosDetailUI(
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable {
                             imagePicker.launch(
-                                PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly
-                                )
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         },
                     contentAlignment = Alignment.Center
@@ -346,12 +261,8 @@ fun TodosDetailUI(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Text di bawah gambar
                 Text(
-                    text = if (dataFile == null)
-                        "Sentuh cover untuk mengubah"
-                    else
-                        "Gambar baru dipilih",
+                    text = if (dataFile == null) "Sentuh cover untuk mengubah" else "Gambar baru dipilih",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -359,26 +270,17 @@ fun TodosDetailUI(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Tombol Simpan muncul jika ada gambar baru
                 if (dataFile != null) {
                     Button(
-                        onClick = {
-                            onChangeCover(context, dataFile!!)
-                        },
+                        onClick = { onChangeCover(context, dataFile!!) },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .height(48.dp)
-                            .fillMaxWidth(0.7f),
+                        modifier = Modifier.height(48.dp).fillMaxWidth(0.7f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White
                         )
                     ) {
-                        Text(
-                            text = "Simpan",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Simpan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -395,19 +297,19 @@ fun TodosDetailUI(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Column(
+            // Status + Priority badges
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(
-                            if (todo.isDone)
-                                MaterialTheme.colorScheme.secondaryContainer
-                            else
-                                MaterialTheme.colorScheme.tertiaryContainer
+                            if (todo.isDone) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.tertiaryContainer
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -421,23 +323,21 @@ fun TodosDetailUI(
                             MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
+
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(8.dp))
+
+                PriorityBadge(priority = todo.priority)
             }
         }
 
-        // Deskripsi
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             shape = MaterialTheme.shapes.medium,
             elevation = CardDefaults.cardElevation(4.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        )
-        {
+        ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
             ) {
                 Text(
                     text = todo.description,
@@ -445,17 +345,6 @@ fun TodosDetailUI(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-
         }
-    }
-}
-
-@Preview(showBackground = true, name = "Light Mode")
-@Composable
-fun PreviewTodosDetailUI() {
-    DelcomTheme {
-//        TodosDetailUI(
-//            todo = DummyData.getTodosData()[0]
-//        )
     }
 }

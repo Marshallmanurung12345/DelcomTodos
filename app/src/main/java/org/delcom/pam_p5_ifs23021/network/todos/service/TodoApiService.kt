@@ -15,7 +15,6 @@ import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodo
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoAdd
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodos
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseUser
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseUserData
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -32,25 +31,21 @@ interface TodoApiService {
     // Auth
     // ----------------------------------
 
-    // Register
     @POST("auth/register")
     suspend fun postRegister(
         @Body request: RequestAuthRegister
     ): ResponseMessage<ResponseAuthRegister?>
 
-    // Login
     @POST("auth/login")
     suspend fun postLogin(
         @Body request: RequestAuthLogin
     ): ResponseMessage<ResponseAuthLogin?>
 
-    // Logout
     @POST("auth/logout")
     suspend fun postLogout(
         @Body request: RequestAuthLogout
     ): ResponseMessage<String?>
 
-    // RefreshToken
     @POST("auth/refresh-token")
     suspend fun postRefreshToken(
         @Body request: RequestAuthRefreshToken
@@ -60,27 +55,23 @@ interface TodoApiService {
     // Users
     // ----------------------------------
 
-    // Ambil informasi profile
     @GET("users/me")
     suspend fun getUserMe(
         @Header("Authorization") authToken: String
     ): ResponseMessage<ResponseUser?>
 
-    // Ubah data profile
     @PUT("users/me")
     suspend fun putUserMe(
         @Header("Authorization") authToken: String,
         @Body request: RequestUserChange,
     ): ResponseMessage<String?>
 
-    // Ubah data kata sandi
     @PUT("users/me/password")
     suspend fun putUserMePassword(
         @Header("Authorization") authToken: String,
         @Body request: RequestUserChangePassword,
     ): ResponseMessage<String?>
 
-    // Ubah photo profile
     @Multipart
     @PUT("users/me/photo")
     suspend fun putUserMePhoto(
@@ -92,28 +83,28 @@ interface TodoApiService {
     // Todos
     // ----------------------------------
 
-    // Ambil semua data todos
     @GET("todos")
     suspend fun getTodos(
         @Header("Authorization") authToken: String,
-        @Query("search") search: String? = null
+        @Query("search") search: String? = null,
+        @Query("isDone") isDone: Boolean? = null,
+        @Query("priority") priority: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("perPage") perPage: Int? = null
     ): ResponseMessage<ResponseTodos?>
 
-    // Menambahkan data todo
     @POST("todos")
     suspend fun postTodo(
         @Header("Authorization") authToken: String,
         @Body request: RequestTodo
     ): ResponseMessage<ResponseTodoAdd?>
 
-    // Ambil data todo berdasarkan id
     @GET("todos/{todoId}")
     suspend fun getTodoById(
         @Header("Authorization") authToken: String,
         @Path("todoId") todoId: String
     ): ResponseMessage<ResponseTodo?>
 
-    // Mengubah data todo
     @PUT("todos/{todoId}")
     suspend fun putTodo(
         @Header("Authorization") authToken: String,
@@ -121,7 +112,6 @@ interface TodoApiService {
         @Body request: RequestTodo
     ): ResponseMessage<String?>
 
-    // Ubah cover todo
     @Multipart
     @PUT("todos/{todoId}/cover")
     suspend fun putTodoCover(
@@ -130,7 +120,6 @@ interface TodoApiService {
         @Part file: MultipartBody.Part
     ): ResponseMessage<String?>
 
-    // Hapus data todo
     @DELETE("todos/{todoId}")
     suspend fun deleteTodo(
         @Header("Authorization") authToken: String,

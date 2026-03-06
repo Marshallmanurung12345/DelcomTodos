@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import org.delcom.pam_p5_ifs23021.helper.ConstHelper
 import org.delcom.pam_p5_ifs23021.helper.RouteHelper
+import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoData
 import org.delcom.pam_p5_ifs23021.ui.components.BottomNavComponent
 import org.delcom.pam_p5_ifs23021.ui.components.LoadingUI
 import org.delcom.pam_p5_ifs23021.ui.components.StatusCard
@@ -46,6 +47,7 @@ import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthLogoutUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthUIState
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.AuthViewModel
 import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodoViewModel
+import org.delcom.pam_p5_ifs23021.ui.viewmodels.TodosUIState
 
 @Composable
 fun HomeScreen(
@@ -53,44 +55,41 @@ fun HomeScreen(
     authViewModel: AuthViewModel,
     todoViewModel: TodoViewModel
 ) {
-    // Ambil data dari viewmodel
     val uiStateAuth by authViewModel.uiState.collectAsState()
+    val uiStateTodo by todoViewModel.uiState.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
     var isFreshToken by remember { mutableStateOf(false) }
     var authToken by remember { mutableStateOf<String?>(null) }
+    var todos by remember { mutableStateOf<List<ResponseTodoData>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         if (isLoading) return@LaunchedEffect
-
         isLoading = true
         isFreshToken = true
-
         uiStateAuth.authLogout = AuthLogoutUIState.Loading
-
         authViewModel.loadTokenFromPreferences()
     }
 
-    fun onLogout(token: String){
+    fun onLogout(token: String) {
         isLoading = true
         authViewModel.logout(token)
     }
 
     LaunchedEffect(uiStateAuth.auth) {
-        if (!isLoading) {
-            return@LaunchedEffect
-        }
-
+        if (!isLoading) return@LaunchedEffect
         if (uiStateAuth.auth !is AuthUIState.Loading) {
             if (uiStateAuth.auth is AuthUIState.Success) {
                 if (isFreshToken) {
                     val dataToken = (uiStateAuth.auth as AuthUIState.Success).data
                     authViewModel.refreshToken(dataToken.authToken, dataToken.refreshToken)
                     isFreshToken = false
-                } else if(uiStateAuth.authRefreshToken is AuthActionUIState.Success) {
+                } else if (uiStateAuth.authRefreshToken is AuthActionUIState.Success) {
                     val newToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
                     if (authToken != newToken) {
-                        authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
+                        authToken = newToken
+                        // Load todos for stats
+                        todoViewModel.getAllTodos(newToken)
                     }
                     isLoading = false
                 }
@@ -100,13 +99,15 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(uiStateTodo.todos) {
+        if (uiStateTodo.todos is TodosUIState.Success) {
+            todos = (uiStateTodo.todos as TodosUIState.Success).data
+        }
+    }
+
     LaunchedEffect(uiStateAuth.authLogout) {
         if (uiStateAuth.authLogout !is AuthLogoutUIState.Loading) {
-            RouteHelper.to(
-                navController,
-                ConstHelper.RouteNames.AuthLogin.path,
-                true
-            )
+            RouteHelper.to(navController, ConstHelper.RouteNames.AuthLogin.path, true)
         }
     }
 
@@ -115,7 +116,6 @@ fun HomeScreen(
         return
     }
 
-    // Menu Top App Bar
     val menuItems = listOf(
         TopAppBarMenuItem(
             text = "Profile",
@@ -126,9 +126,7 @@ fun HomeScreen(
             text = "Logout",
             icon = Icons.AutoMirrored.Filled.Logout,
             route = null,
-            onClick = {
-                onLogout(authToken ?: "")
-            }
+            onClick = { onLogout(authToken ?: "") }
         )
     )
 
@@ -137,36 +135,26 @@ fun HomeScreen(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Top App Bar
         TopAppBarComponent(
             navController = navController,
             title = "Home",
             showBackButton = false,
             customMenuItems = menuItems
         )
-        // Content
-        Box(
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            HomeUI()
+        Box(modifier = Modifier.weight(1f)) {
+            HomeUI(todos = todos)
         }
-        // Bottom Nav
         BottomNavComponent(navController = navController)
     }
 }
 
 @Composable
-fun HomeUI() {
-    val totalTodos = 0
-    val doneTodos = 0
-    val pendingTodos = 0
+fun HomeUI(todos: List<ResponseTodoData> = emptyList()) {
+    val totalTodos = todos.size
+    val doneTodos = todos.count { it.isDone }
+    val pendingTodos = todos.count { !it.isDone }
 
-    Column(
-        modifier = Modifier.padding(top = 16.dp)
-    )
-    {
-        // Header App
+    Column(modifier = Modifier.padding(top = 16.dp)) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -190,29 +178,22 @@ fun HomeUI() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Quick Status Cards
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-
-            // Total Todos
             StatusCard(
                 title = "Total",
                 value = totalTodos.toString(),
                 icon = Icons.AutoMirrored.Filled.List
             )
-
-            // Selesai
             StatusCard(
                 title = "Selesai",
                 value = doneTodos.toString(),
                 icon = Icons.Default.CheckCircle
             )
-
-            // Belum
             StatusCard(
                 title = "Belum",
                 value = pendingTodos.toString(),

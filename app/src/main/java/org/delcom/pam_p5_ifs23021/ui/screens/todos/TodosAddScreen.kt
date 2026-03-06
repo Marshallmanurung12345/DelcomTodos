@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import org.delcom.pam_p5_ifs23021.helper.AlertHelper
@@ -43,8 +47,7 @@ import org.delcom.pam_p5_ifs23021.helper.AlertType
 import org.delcom.pam_p5_ifs23021.helper.ConstHelper
 import org.delcom.pam_p5_ifs23021.helper.RouteHelper
 import org.delcom.pam_p5_ifs23021.helper.SuspendHelper
-import org.delcom.pam_p5_ifs23021.helper.SuspendHelper.SnackBarType
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoData
+import org.delcom.pam_p5_ifs23021.network.todos.data.TodoPriority
 import org.delcom.pam_p5_ifs23021.ui.components.BottomNavComponent
 import org.delcom.pam_p5_ifs23021.ui.components.LoadingUI
 import org.delcom.pam_p5_ifs23021.ui.components.TopAppBarComponent
@@ -60,81 +63,47 @@ fun TodosAddScreen(
     authViewModel: AuthViewModel,
     todoViewModel: TodoViewModel
 ) {
-    // Ambil data dari viewmodel
     val uiStateAuth by authViewModel.uiState.collectAsState()
     val uiStateTodo by todoViewModel.uiState.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
-    var tmpTodo by remember { mutableStateOf<ResponseTodoData?>(null) }
     val authToken = remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        // Reset status todo action
-
-        if(uiStateAuth.auth !is AuthUIState.Success){
-            RouteHelper.to(
-                navController,
-                ConstHelper.RouteNames.Home.path,
-                true
-            )
+        if (uiStateAuth.auth !is AuthUIState.Success) {
+            RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
-
         authToken.value = (uiStateAuth.auth as AuthUIState.Success).data.authToken
         uiStateTodo.todoAdd = TodoActionUIState.Loading
     }
 
-    // Simpan data
-    fun onSave(
-        title: String,
-        description: String,
-    ) {
-        if(authToken.value == null){
-            return
-        }
-
+    fun onSave(title: String, description: String, priority: String) {
+        if (authToken.value == null) return
         isLoading = true
-
-        tmpTodo = ResponseTodoData(
-            title = title,
-            description = description,
-        )
-
         todoViewModel.postTodo(
             authToken = authToken.value!!,
             title = title,
             description = description,
+            priority = priority
         )
     }
 
     LaunchedEffect(uiStateTodo.todoAdd) {
         when (val state = uiStateTodo.todoAdd) {
             is TodoActionUIState.Success -> {
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.SUCCESS,
-                    message = state.message
-                )
-                RouteHelper.to(
-                    navController,
-                    ConstHelper.RouteNames.Todos.path,
-                    true
-                )
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
+                RouteHelper.to(navController, ConstHelper.RouteNames.Todos.path, true)
                 isLoading = false
             }
             is TodoActionUIState.Error -> {
-                SuspendHelper.showSnackBar(
-                    snackbarHost = snackbarHost,
-                    type = SnackBarType.ERROR,
-                    message = state.message
-                )
+                SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.ERROR, state.message)
                 isLoading = false
             }
             else -> {}
         }
     }
 
-    // Tampilkan halaman loading
     if (isLoading) {
         LoadingUI()
         return
@@ -145,39 +114,27 @@ fun TodosAddScreen(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Top App Bar
         TopAppBarComponent(
             navController = navController,
             title = "Tambah Todo",
             showBackButton = true,
+            showMenu = false
         )
-        // Content
-        Box(
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            TodosAddUI(
-                tmpTodo = tmpTodo,
-                onSave = ::onSave
-            )
+        Box(modifier = Modifier.weight(1f)) {
+            TodosAddUI(onSave = ::onSave)
         }
-        // Bottom Nav
         BottomNavComponent(navController = navController)
     }
 }
 
 @Composable
 fun TodosAddUI(
-    tmpTodo: ResponseTodoData?,
-    onSave: (
-        String,
-        String
-    ) -> Unit
+    onSave: (String, String, String) -> Unit
 ) {
     val alertState = remember { mutableStateOf(AlertState()) }
-
-    var dataTitle by remember { mutableStateOf(tmpTodo?.title ?: "") }
-    var dataDescription by remember { mutableStateOf(tmpTodo?.description ?: "") }
+    var dataTitle by remember { mutableStateOf("") }
+    var dataDescription by remember { mutableStateOf("") }
+    var dataPriority by remember { mutableStateOf(TodoPriority.LOW.name) }
 
     Column(
         modifier = Modifier
@@ -197,19 +154,44 @@ fun TodosAddUI(
                 cursorColor = MaterialTheme.colorScheme.primaryContainer,
                 unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
-            label = {
-                Text(
-                    text = "Title",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            },
-            modifier = Modifier
-                .fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done
-            ),
+            label = { Text("Title", color = MaterialTheme.colorScheme.onPrimaryContainer) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
         )
+
+        // Priority selector
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Prioritas",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TodoPriority.entries.forEach { priority ->
+                    val (chipColor, textColor) = priorityColors(priority.name)
+                    FilterChip(
+                        selected = dataPriority == priority.name,
+                        onClick = { dataPriority = priority.name },
+                        label = {
+                            Text(
+                                priority.label,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = chipColor,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+        }
 
         // Description
         OutlinedTextField(
@@ -222,19 +204,11 @@ fun TodosAddUI(
                 cursorColor = MaterialTheme.colorScheme.primaryContainer,
                 unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
             ),
-            label = {
-                Text(
-                    text = "Description",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            },
+            label = { Text("Description", color = MaterialTheme.colorScheme.onPrimaryContainer) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done
-            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
             maxLines = 5,
             minLines = 3
         )
@@ -242,81 +216,41 @@ fun TodosAddUI(
         Spacer(modifier = Modifier.height(64.dp))
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        // Floating Action Button
+    Box(modifier = Modifier.fillMaxSize()) {
         FloatingActionButton(
             onClick = {
-                if(dataTitle.isEmpty()) {
-                    AlertHelper.show(
-                        alertState,
-                        AlertType.ERROR,
-                        "Judul tidak boleh kosong!"
-                    )
+                if (dataTitle.isEmpty()) {
+                    AlertHelper.show(alertState, AlertType.ERROR, "Judul tidak boleh kosong!")
                     return@FloatingActionButton
                 }
-
-                if(dataDescription.isEmpty()) {
-                    AlertHelper.show(
-                        alertState,
-                        AlertType.ERROR,
-                        "Deskripsi tidak boleh kosong!"
-                    )
+                if (dataDescription.isEmpty()) {
+                    AlertHelper.show(alertState, AlertType.ERROR, "Deskripsi tidak boleh kosong!")
                     return@FloatingActionButton
                 }
-
-                onSave(
-                    dataTitle,
-                    dataDescription
-                )
+                onSave(dataTitle, dataDescription, dataPriority)
             },
-            modifier = Modifier
-                .align(Alignment.BottomEnd) // pojok kanan bawah
-                .padding(16.dp) // jarak dari tepi
-            ,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-            Icon(
-                imageVector = Icons.Default.Save,
-                contentDescription = "Simpan Data"
-            )
+            Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan Data")
         }
     }
 
     if (alertState.value.isVisible) {
         AlertDialog(
-            onDismissRequest = {
-                AlertHelper.dismiss(alertState)
-            },
-            title = {
-                Text(alertState.value.type.title)
-            },
-            text = {
-                Text(alertState.value.message)
-            },
+            onDismissRequest = { AlertHelper.dismiss(alertState) },
+            title = { Text(alertState.value.type.title) },
+            text = { Text(alertState.value.message) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        AlertHelper.dismiss(alertState)
-                    }
-                ) {
-                    Text("OK")
-                }
+                TextButton(onClick = { AlertHelper.dismiss(alertState) }) { Text("OK") }
             }
         )
     }
 }
 
-@Preview(showBackground = true, name = "Light Mode")
-@Composable
-fun PreviewTodosAddUI() {
-//    DelcomTheme {
-//        TodosAddUI(
-//            todos = DummyData.getTodosAddData(),
-//            onOpen = {}
-//        )
-//    }
+fun priorityColors(priority: String): Pair<Color, Color> = when (priority.uppercase()) {
+    "HIGH" -> Pair(Color(0xFFE53935), Color.White)
+    "MEDIUM" -> Pair(Color(0xFFFB8C00), Color.White)
+    else -> Pair(Color(0xFF43A047), Color.White)
 }

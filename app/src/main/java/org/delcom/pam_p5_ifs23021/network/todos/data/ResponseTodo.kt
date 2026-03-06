@@ -19,6 +19,7 @@ data class ResponseTodoData(
     val title: String,
     val description: String,
     val isDone: Boolean = false,
+    val priority: String = TodoPriority.LOW.name,
     val cover: String? = null,
     val createdAt: String = "",
     var updatedAt: String = ""

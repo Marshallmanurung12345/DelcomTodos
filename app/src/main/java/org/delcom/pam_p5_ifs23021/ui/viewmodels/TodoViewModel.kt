@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import org.delcom.pam_p5_ifs23021.network.data.ResponseMessage
 import org.delcom.pam_p5_ifs23021.network.todos.data.RequestTodo
+import org.delcom.pam_p5_ifs23021.network.todos.data.RequestUserChange
+import org.delcom.pam_p5_ifs23021.network.todos.data.RequestUserChangePassword
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodo
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoAdd
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoData
@@ -51,7 +53,15 @@ data class UIStateTodo(
     var todoAdd: TodoActionUIState = TodoActionUIState.Loading,
     var todoChange: TodoActionUIState = TodoActionUIState.Loading,
     var todoDelete: TodoActionUIState = TodoActionUIState.Loading,
-    var todoChangeCover: TodoActionUIState = TodoActionUIState.Loading
+    var todoChangeCover: TodoActionUIState = TodoActionUIState.Loading,
+    var profileChange: TodoActionUIState = TodoActionUIState.Loading,
+    var profileChangePassword: TodoActionUIState = TodoActionUIState.Loading,
+    var profileChangePhoto: TodoActionUIState = TodoActionUIState.Loading,
+    // Pagination state
+    val currentPage: Int = 1,
+    val hasMoreData: Boolean = true,
+    val isLoadingMore: Boolean = false,
+    val allTodos: List<ResponseTodoData> = emptyList()
 )
 
 @HiltViewModel
@@ -61,6 +71,10 @@ class TodoViewModel @Inject constructor(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UIStateTodo())
     val uiState = _uiState.asStateFlow()
+
+    companion object {
+        const val PAGE_SIZE = 10
+    }
 
     fun getProfile(authToken: String) {
         viewModelScope.launch {
@@ -85,40 +99,207 @@ class TodoViewModel @Inject constructor(
         }
     }
 
-    fun getAllTodos(authToken: String, search: String? = null) {
+    fun updateProfile(
+        authToken: String,
+        name: String,
+        username: String,
+        about: String
+    ) {
         viewModelScope.launch {
-            _uiState.update { it.copy(todos = TodosUIState.Loading) }
-            val result = runCatching { repository.getTodos(authToken, search) }
+            _uiState.update { it.copy(profileChange = TodoActionUIState.Loading) }
+            val result = runCatching {
+                repository.putUserMe(
+                    authToken,
+                    RequestUserChange(name = name, username = username, about = about)
+                )
+            }
             _uiState.update { state ->
                 val nextState = result.fold(
-                    onSuccess = { response: ResponseMessage<ResponseTodos?> ->
-                        val todos = response.data?.todos
-                        if (response.status == "success" && todos != null) {
-                            TodosUIState.Success(todos)
+                    onSuccess = { response ->
+                        if (response.status == "success") {
+                            // Update cached profile data
+                            val updatedProfile = if (state.profile is ProfileUIState.Success) {
+                                val cur = (state.profile as ProfileUIState.Success).data
+                                ProfileUIState.Success(cur.copy(name = name, username = username, about = about))
+                            } else state.profile
+                            return@update state.copy(
+                                profileChange = TodoActionUIState.Success(response.message),
+                                profile = updatedProfile
+                            )
                         } else {
-                            TodosUIState.Error(response.message)
+                            TodoActionUIState.Error(response.message)
+                        }
+                    },
+                    onFailure = { error -> TodoActionUIState.Error(error.message ?: "Unknown error") }
+                )
+                state.copy(profileChange = nextState)
+            }
+        }
+    }
+
+    fun changePassword(
+        authToken: String,
+        currentPassword: String,
+        newPassword: String
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(profileChangePassword = TodoActionUIState.Loading) }
+            val result = runCatching {
+                repository.putUserMePassword(
+                    authToken,
+                    RequestUserChangePassword(newPassword = newPassword, password = currentPassword)
+                )
+            }
+            _uiState.update { state ->
+                val nextState = result.fold(
+                    onSuccess = { response ->
+                        if (response.status == "success") TodoActionUIState.Success(response.message)
+                        else TodoActionUIState.Error(response.message)
+                    },
+                    onFailure = { error -> TodoActionUIState.Error(error.message ?: "Unknown error") }
+                )
+                state.copy(profileChangePassword = nextState)
+            }
+        }
+    }
+
+    fun updateProfilePhoto(authToken: String, file: MultipartBody.Part) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(profileChangePhoto = TodoActionUIState.Loading) }
+            val result = runCatching { repository.putUserMePhoto(authToken, file) }
+            _uiState.update { state ->
+                val nextState = result.fold(
+                    onSuccess = { response ->
+                        if (response.status == "success") TodoActionUIState.Success(response.message)
+                        else TodoActionUIState.Error(response.message)
+                    },
+                    onFailure = { error -> TodoActionUIState.Error(error.message ?: "Unknown error") }
+                )
+                state.copy(profileChangePhoto = nextState)
+            }
+        }
+    }
+
+    /**
+     * Load first page (resets pagination)
+     */
+    fun getAllTodos(
+        authToken: String,
+        search: String? = null,
+        isDone: Boolean? = null,
+        priority: String? = null
+    ) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    todos = TodosUIState.Loading,
+                    currentPage = 1,
+                    hasMoreData = true,
+                    allTodos = emptyList()
+                )
+            }
+            val result = runCatching {
+                repository.getTodos(
+                    authToken = authToken,
+                    search = search,
+                    isDone = isDone,
+                    priority = priority,
+                    page = 1,
+                    perPage = PAGE_SIZE
+                )
+            }
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { response: ResponseMessage<ResponseTodos?> ->
+                        val todos = response.data?.todos ?: emptyList()
+                        val sorted = todos.sortedByPriority()
+                        if (response.status == "success") {
+                            state.copy(
+                                todos = TodosUIState.Success(sorted),
+                                allTodos = sorted,
+                                currentPage = 1,
+                                hasMoreData = todos.size >= PAGE_SIZE
+                            )
+                        } else {
+                            state.copy(todos = TodosUIState.Error(response.message))
                         }
                     },
                     onFailure = { error ->
-                        TodosUIState.Error(error.message ?: "Unknown error")
+                        state.copy(todos = TodosUIState.Error(error.message ?: "Unknown error"))
                     }
                 )
-                state.copy(todos = nextState)
             }
         }
+    }
+
+    /**
+     * Load next page (appends to existing list)
+     */
+    fun loadMoreTodos(
+        authToken: String,
+        search: String? = null,
+        isDone: Boolean? = null,
+        priority: String? = null
+    ) {
+        val currentState = _uiState.value
+        if (!currentState.hasMoreData || currentState.isLoadingMore) return
+
+        viewModelScope.launch {
+            val nextPage = currentState.currentPage + 1
+            _uiState.update { it.copy(isLoadingMore = true) }
+            val result = runCatching {
+                repository.getTodos(
+                    authToken = authToken,
+                    search = search,
+                    isDone = isDone,
+                    priority = priority,
+                    page = nextPage,
+                    perPage = PAGE_SIZE
+                )
+            }
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { response ->
+                        val newTodos = response.data?.todos ?: emptyList()
+                        val sorted = newTodos.sortedByPriority()
+                        if (response.status == "success") {
+                            val combined = state.allTodos + sorted
+                            state.copy(
+                                todos = TodosUIState.Success(combined),
+                                allTodos = combined,
+                                currentPage = nextPage,
+                                hasMoreData = newTodos.size >= PAGE_SIZE,
+                                isLoadingMore = false
+                            )
+                        } else {
+                            state.copy(isLoadingMore = false)
+                        }
+                    },
+                    onFailure = {
+                        state.copy(isLoadingMore = false)
+                    }
+                )
+            }
+        }
+    }
+
+    private fun List<ResponseTodoData>.sortedByPriority(): List<ResponseTodoData> {
+        val priorityOrder = mapOf("HIGH" to 0, "MEDIUM" to 1, "LOW" to 2)
+        return sortedBy { priorityOrder[it.priority.uppercase()] ?: 2 }
     }
 
     fun postTodo(
         authToken: String,
         title: String,
         description: String,
+        priority: String = "LOW"
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(todoAdd = TodoActionUIState.Loading) }
             val result = runCatching {
                 repository.postTodo(
                     authToken = authToken,
-                    request = RequestTodo(title = title, description = description)
+                    request = RequestTodo(title = title, description = description, priority = priority)
                 )
             }
             _uiState.update { state ->
@@ -167,7 +348,8 @@ class TodoViewModel @Inject constructor(
         todoId: String,
         title: String,
         description: String,
-        isDone: Boolean
+        isDone: Boolean,
+        priority: String = "LOW"
     ) {
         viewModelScope.launch {
             _uiState.update { it.copy(todoChange = TodoActionUIState.Loading) }
@@ -175,7 +357,12 @@ class TodoViewModel @Inject constructor(
                 repository.putTodo(
                     authToken = authToken,
                     todoId = todoId,
-                    request = RequestTodo(title = title, description = description, isDone = isDone)
+                    request = RequestTodo(
+                        title = title,
+                        description = description,
+                        isDone = isDone,
+                        priority = priority
+                    )
                 )
             }
             _uiState.update { state ->

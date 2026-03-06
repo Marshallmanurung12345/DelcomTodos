@@ -36,13 +36,14 @@ fun UIApp(
     todoViewModel: TodoViewModel,
     authViewModel: AuthViewModel
 ) {
-    // Inisialisasi SnackbarHostState
     val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState){ snackbarData ->
-            CustomSnackbar(snackbarData, onDismiss = { snackbarHostState.currentSnackbarData?.dismiss() })
-        } },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { snackbarData ->
+                CustomSnackbar(snackbarData, onDismiss = { snackbarHostState.currentSnackbarData?.dismiss() })
+            }
+        },
     ) { _ ->
         NavHost(
             navController = navController,
@@ -50,12 +51,8 @@ fun UIApp(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFF7F8FA))
-
         ) {
-            // Auth Login
-            composable(
-                route = ConstHelper.RouteNames.AuthLogin.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.AuthLogin.path) { _ ->
                 AuthLoginScreen(
                     navController = navController,
                     snackbarHost = snackbarHostState,
@@ -63,10 +60,7 @@ fun UIApp(
                 )
             }
 
-            // Auth Register
-            composable(
-                route = ConstHelper.RouteNames.AuthRegister.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.AuthRegister.path) { _ ->
                 AuthRegisterScreen(
                     navController = navController,
                     snackbarHost = snackbarHostState,
@@ -74,10 +68,7 @@ fun UIApp(
                 )
             }
 
-            // Home
-            composable(
-                route = ConstHelper.RouteNames.Home.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.Home.path) { _ ->
                 HomeScreen(
                     navController = navController,
                     authViewModel = authViewModel,
@@ -85,21 +76,16 @@ fun UIApp(
                 )
             }
 
-            // Profile
-            composable(
-                route = ConstHelper.RouteNames.Profile.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.Profile.path) { _ ->
                 ProfileScreen(
                     navController = navController,
                     authViewModel = authViewModel,
-                    todoViewModel = todoViewModel
+                    todoViewModel = todoViewModel,
+                    snackbarHost = snackbarHostState
                 )
             }
 
-            // Todos
-            composable(
-                route = ConstHelper.RouteNames.Todos.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.Todos.path) { _ ->
                 TodosScreen(
                     navController = navController,
                     authViewModel = authViewModel,
@@ -107,10 +93,7 @@ fun UIApp(
                 )
             }
 
-            // Todos Add
-            composable(
-                route = ConstHelper.RouteNames.TodosAdd.path,
-            ) { _ ->
+            composable(route = ConstHelper.RouteNames.TodosAdd.path) { _ ->
                 TodosAddScreen(
                     navController = navController,
                     snackbarHost = snackbarHostState,
@@ -119,15 +102,11 @@ fun UIApp(
                 )
             }
 
-            // Todos Detail
             composable(
                 route = ConstHelper.RouteNames.TodosDetail.path,
-                arguments = listOf(
-                    navArgument("todoId") { type = NavType.StringType },
-                )
+                arguments = listOf(navArgument("todoId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val todoId = backStackEntry.arguments?.getString("todoId") ?: ""
-
                 TodosDetailScreen(
                     navController = navController,
                     snackbarHost = snackbarHostState,
@@ -137,15 +116,11 @@ fun UIApp(
                 )
             }
 
-            // Todos Edit
             composable(
                 route = ConstHelper.RouteNames.TodosEdit.path,
-                arguments = listOf(
-                    navArgument("todoId") { type = NavType.StringType },
-                )
+                arguments = listOf(navArgument("todoId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val todoId = backStackEntry.arguments?.getString("todoId") ?: ""
-
                 TodosEditScreen(
                     navController = navController,
                     snackbarHost = snackbarHostState,
@@ -156,5 +131,4 @@ fun UIApp(
             }
         }
     }
-
 }

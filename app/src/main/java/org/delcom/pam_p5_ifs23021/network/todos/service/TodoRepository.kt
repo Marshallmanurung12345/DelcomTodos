@@ -16,7 +16,6 @@ import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodo
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodoAdd
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseTodos
 import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseUser
-import org.delcom.pam_p5_ifs23021.network.todos.data.ResponseUserData
 
 class TodoRepository(
     private val apiService: TodoApiService
@@ -103,10 +102,14 @@ class TodoRepository(
 
     override suspend fun getTodos(
         authToken: String,
-        search: String?
+        search: String?,
+        isDone: Boolean?,
+        priority: String?,
+        page: Int?,
+        perPage: Int?
     ): ResponseMessage<ResponseTodos?> {
         return SuspendHelper.safeApiCall {
-            apiService.getTodos("Bearer $authToken", search)
+            apiService.getTodos("Bearer $authToken", search, isDone, priority, page, perPage)
         }
     }
 
