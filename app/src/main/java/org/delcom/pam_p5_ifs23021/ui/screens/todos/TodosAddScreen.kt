@@ -75,7 +75,7 @@ fun TodosAddScreen(
             return@LaunchedEffect
         }
         authToken.value = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-        uiStateTodo.todoAdd = TodoActionUIState.Loading
+        todoViewModel.resetTodoAdd()
     }
 
     fun onSave(title: String, description: String, priority: String) {
@@ -111,16 +111,21 @@ fun TodosAddScreen(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBarComponent(
             navController = navController,
             title = "Tambah Todo",
             showBackButton = true,
-            showMenu = false
+            showMenu = false,
+            customMenuItems = emptyList()
         )
-        Box(modifier = Modifier.weight(1f)) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
             TodosAddUI(onSave = ::onSave)
         }
         BottomNavComponent(navController = navController)
@@ -136,87 +141,95 @@ fun TodosAddUI(
     var dataDescription by remember { mutableStateOf("") }
     var dataPriority by remember { mutableStateOf(TodoPriority.LOW.name) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Title
-        OutlinedTextField(
-            value = dataTitle,
-            onValueChange = { dataTitle = it },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                focusedBorderColor = MaterialTheme.colorScheme.primaryContainer,
-                cursorColor = MaterialTheme.colorScheme.primaryContainer,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            label = { Text("Title", color = MaterialTheme.colorScheme.onPrimaryContainer) },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-        )
+    Box(modifier = Modifier.fillMaxSize()) {
 
-        // Priority selector
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Prioritas",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Title
+            OutlinedTextField(
+                value = dataTitle,
+                onValueChange = { dataTitle = it },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+                label = { Text("Title") },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TodoPriority.entries.forEach { priority ->
-                    val (chipColor, textColor) = priorityColors(priority.name)
-                    FilterChip(
-                        selected = dataPriority == priority.name,
-                        onClick = { dataPriority = priority.name },
-                        label = {
-                            Text(
-                                priority.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                ),
+                singleLine = true
+            )
+
+            // Priority selector
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Prioritas",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TodoPriority.entries.forEach { priority ->
+                        val chipColor = priorityColor(priority.name)
+                        FilterChip(
+                            selected = dataPriority == priority.name,
+                            onClick = { dataPriority = priority.name },
+                            label = {
+                                Text(
+                                    priority.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = chipColor,
+                                selectedLabelColor = Color.White
                             )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = chipColor,
-                            selectedLabelColor = Color.White
                         )
-                    )
+                    }
                 }
             }
+
+            // Description
+            OutlinedTextField(
+                value = dataDescription,
+                onValueChange = { dataDescription = it },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+                label = { Text("Description") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Done
+                ),
+                maxLines = 5,
+                minLines = 3
+            )
         }
 
-        // Description
-        OutlinedTextField(
-            value = dataDescription,
-            onValueChange = { dataDescription = it },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                focusedBorderColor = MaterialTheme.colorScheme.primaryContainer,
-                cursorColor = MaterialTheme.colorScheme.primaryContainer,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            label = { Text("Description", color = MaterialTheme.colorScheme.onPrimaryContainer) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-            maxLines = 5,
-            minLines = 3
-        )
-
-        Spacer(modifier = Modifier.height(64.dp))
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
         FloatingActionButton(
             onClick = {
                 if (dataTitle.isEmpty()) {
@@ -229,7 +242,9 @@ fun TodosAddUI(
                 }
                 onSave(dataTitle, dataDescription, dataPriority)
             },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
@@ -247,6 +262,12 @@ fun TodosAddUI(
             }
         )
     }
+}
+
+fun priorityColor(priority: String): Color = when (priority.uppercase()) {
+    "HIGH" -> Color(0xFFE53935)
+    "MEDIUM" -> Color(0xFFFB8C00)
+    else -> Color(0xFF43A047)
 }
 
 fun priorityColors(priority: String): Pair<Color, Color> = when (priority.uppercase()) {

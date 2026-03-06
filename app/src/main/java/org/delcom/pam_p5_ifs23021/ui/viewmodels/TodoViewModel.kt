@@ -320,6 +320,10 @@ class TodoViewModel @Inject constructor(
         }
     }
 
+    fun resetTodoAdd() {
+        _uiState.update { it.copy(todoAdd = TodoActionUIState.Loading) }
+    }
+
     fun getTodoById(authToken: String, todoId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(todo = TodoUIState.Loading) }
