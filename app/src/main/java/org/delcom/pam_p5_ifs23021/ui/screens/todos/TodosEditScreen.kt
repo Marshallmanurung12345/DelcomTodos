@@ -1,14 +1,39 @@
 package org.delcom.pam_p5_ifs23021.ui.screens.todos
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,24 +71,42 @@ fun TodosEditScreen(
     val uiStateTodo by todoViewModel.uiState.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
-    var todoData by remember { mutableStateOf<ResponseTodoData?>(null) }
+    var todo by remember { mutableStateOf<ResponseTodoData?>(null) }
     var authToken by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        if (uiStateAuth.auth is AuthUIState.Success) {
-            authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-            todoViewModel.resetTodoChange()
-            todoViewModel.getTodoById(authToken!!, todoId)
+        isLoading = true
+        if (uiStateAuth.auth !is AuthUIState.Success) {
+            RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
+            return@LaunchedEffect
+        }
+        authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
+        todoViewModel.resetTodoChange()
+        // Jika data todo sudah ada di state (dari DetailScreen), pakai langsung
+        val currentTodo = uiStateTodo.todo
+        if (currentTodo is TodoUIState.Success) {
+            todo = currentTodo.data
+            isLoading = false
         } else {
-            RouteHelper.to(navController, ConstHelper.RouteNames.AuthLogin.path, true)
+            // Kalau belum ada, fetch dari API
+            todoViewModel.getTodoById(authToken!!, todoId)
         }
     }
 
     LaunchedEffect(uiStateTodo.todo) {
-        if (uiStateTodo.todo is TodoUIState.Success) {
-            todoData = (uiStateTodo.todo as TodoUIState.Success).data
-        } else if (uiStateTodo.todo is TodoUIState.Error) {
-            RouteHelper.back(navController)
+        when (val state = uiStateTodo.todo) {
+            is TodoUIState.Success -> {
+                todo = state.data
+                isLoading = false
+            }
+            is TodoUIState.Error -> {
+                // Hanya back kalau memang sedang loading (bukan dari reset)
+                if (isLoading) {
+                    isLoading = false
+                    RouteHelper.back(navController)
+                }
+            }
+            is TodoUIState.Loading -> { /* tunggu */ }
         }
     }
 
@@ -71,8 +114,13 @@ fun TodosEditScreen(
         when (val state = uiStateTodo.todoChange) {
             is TodoActionUIState.Success -> {
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
+                RouteHelper.to(
+                    navController = navController,
+                    destination = ConstHelper.RouteNames.TodosDetail.path.replace("{todoId}", todoId),
+                    popUpTo = ConstHelper.RouteNames.TodosDetail.path.replace("{todoId}", todoId),
+                    removeBackStack = true
+                )
                 isLoading = false
-                RouteHelper.back(navController) // Navigasi aman
             }
             is TodoActionUIState.Error -> {
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.ERROR, state.message)
@@ -82,22 +130,36 @@ fun TodosEditScreen(
         }
     }
 
-    if (uiStateTodo.todo is TodoUIState.Loading || isLoading || todoData == null) {
-        LoadingUI()
-    } else {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TopAppBarComponent(navController, "Ubah Data", true, false)
-            Box(modifier = Modifier.weight(1f)) {
-                TodosEditUI(
-                    todo = todoData!!,
-                    onSave = { title, desc, done, priority ->
-                        isLoading = true
-                        todoViewModel.putTodo(authToken!!, todoId, title, desc, done, priority)
-                    }
-                )
-            }
-            BottomNavComponent(navController)
+    if (isLoading || todo == null) { LoadingUI(); return }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        TopAppBarComponent(
+            navController = navController,
+            title = "Ubah Data",
+            showBackButton = true,
+            showMenu = false
+        )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            TodosEditUI(
+                todo = todo!!,
+                onSave = { title, description, isDone, priority ->
+                    isLoading = true
+                    todoViewModel.putTodo(
+                        authToken = authToken!!,
+                        todoId = todoId,
+                        title = title,
+                        description = description,
+                        isDone = isDone,
+                        priority = priority
+                    )
+                }
+            )
         }
+        BottomNavComponent(navController = navController)
     }
 }
 
@@ -107,46 +169,49 @@ fun TodosEditUI(
     onSave: (String, String, Boolean, String) -> Unit
 ) {
     val alertState = remember { mutableStateOf(AlertState()) }
-    var title by remember { mutableStateOf(todo.title) }
-    var description by remember { mutableStateOf(todo.description) }
-    var isDone by remember { mutableStateOf(todo.isDone) }
-    var priority by remember { mutableStateOf(todo.priority.uppercase()) }
+    var dataTitle by remember { mutableStateOf(todo.title) }
+    var dataDescription by remember { mutableStateOf(todo.description) }
+    var dataIsDone by remember { mutableStateOf(todo.isDone) }
+    var dataPriority by remember { mutableStateOf(todo.priority.ifEmpty { TodoPriority.LOW.name }) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
-                value = title, onValueChange = { title = it },
-                label = { Text("Judul") }, modifier = Modifier.fillMaxWidth()
+                value = dataTitle,
+                onValueChange = { dataTitle = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next)
             )
 
-            Column {
-                Text("Status", style = MaterialTheme.typography.labelLarge)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Status", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = isDone, onClick = { isDone = true })
+                    RadioButton(selected = dataIsDone, onClick = { dataIsDone = true })
                     Text("Selesai")
-                    Spacer(Modifier.width(16.dp))
-                    RadioButton(selected = !isDone, onClick = { isDone = false })
+                    Spacer(modifier = Modifier.width(16.dp))
+                    RadioButton(selected = !dataIsDone, onClick = { dataIsDone = false })
                     Text("Belum")
                 }
             }
 
-            Column {
-                Text("Prioritas", style = MaterialTheme.typography.labelLarge)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Prioritas", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TodoPriority.allValues().forEach { p ->
-                        val isSelected = priority == p.name
-                        val color = when(p) {
-                            TodoPriority.HIGH -> Color(0xFFE53935)
-                            TodoPriority.MEDIUM -> Color(0xFFFB8C00)
-                            TodoPriority.LOW -> Color(0xFF43A047)
-                        }
+                    TodoPriority.values().forEach { priority ->
+                        val color = priorityColor(priority.name)
                         FilterChip(
-                            selected = isSelected,
-                            onClick = { priority = p.name }, // Langsung update state
-                            label = { Text(p.label) },
+                            selected = dataPriority.uppercase() == priority.name,
+                            onClick = { dataPriority = priority.name },
+                            label = { Text(priority.label, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = color,
                                 selectedLabelColor = Color.White
@@ -157,23 +222,32 @@ fun TodosEditUI(
             }
 
             OutlinedTextField(
-                value = description, onValueChange = { description = it },
-                label = { Text("Deskripsi") }, modifier = Modifier.fillMaxWidth().height(150.dp)
+                value = dataDescription,
+                onValueChange = { dataDescription = it },
+                label = { Text("Deskripsi") },
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                maxLines = 5, minLines = 3,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done)
             )
         }
 
         FloatingActionButton(
             onClick = {
-                if (title.isBlank() || description.isBlank()) {
-                    AlertHelper.show(alertState, AlertType.ERROR, "Judul dan Deskripsi wajib diisi!")
-                } else {
-                    onSave(title, description, isDone, priority)
+                if (dataTitle.isEmpty()) {
+                    AlertHelper.show(alertState, AlertType.ERROR, "Judul tidak boleh kosong!")
+                    return@FloatingActionButton
                 }
+                if (dataDescription.isEmpty()) {
+                    AlertHelper.show(alertState, AlertType.ERROR, "Deskripsi tidak boleh kosong!")
+                    return@FloatingActionButton
+                }
+                onSave(dataTitle, dataDescription, dataIsDone, dataPriority)
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-            Icon(Icons.Default.Save, "Simpan")
+            Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan")
         }
     }
 
@@ -182,7 +256,9 @@ fun TodosEditUI(
             onDismissRequest = { AlertHelper.dismiss(alertState) },
             title = { Text(alertState.value.type.title) },
             text = { Text(alertState.value.message) },
-            confirmButton = { TextButton(onClick = { AlertHelper.dismiss(alertState) }) { Text("OK") } }
+            confirmButton = {
+                TextButton(onClick = { AlertHelper.dismiss(alertState) }) { Text("OK") }
+            }
         )
     }
 }

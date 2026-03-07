@@ -93,18 +93,23 @@ fun TodosDetailScreen(
         authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
         todoViewModel.resetTodoDelete()
         todoViewModel.resetTodoChangeCover()
-        todoViewModel.resetTodoDetail()
+        // Selalu fetch ulang supaya data fresh setelah edit
         todoViewModel.getTodoById(authToken!!, todoId)
     }
 
     LaunchedEffect(uiStateTodo.todo) {
-        if (uiStateTodo.todo !is TodoUIState.Loading) {
-            if (uiStateTodo.todo is TodoUIState.Success) {
-                todo = (uiStateTodo.todo as TodoUIState.Success).data
+        when (val state = uiStateTodo.todo) {
+            is TodoUIState.Success -> {
+                todo = state.data
                 isLoading = false
-            } else {
-                RouteHelper.back(navController)
             }
+            is TodoUIState.Error -> {
+                if (isLoading) {
+                    isLoading = false
+                    RouteHelper.back(navController)
+                }
+            }
+            is TodoUIState.Loading -> { /* tunggu */ }
         }
     }
 
