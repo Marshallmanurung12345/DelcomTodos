@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.serialization)
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10"
 
     // Add Plugins
     alias(libs.plugins.dagger.hilt.android)
@@ -52,7 +52,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    
+    implementation(libs.androidx.ui)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -63,12 +63,15 @@ dependencies {
 
     // Add Library
     // ================================================
+    // Material 3
+    implementation(libs.androidx.compose.material3)
     // > Google Font
     implementation(libs.androidx.ui.text.google.fonts)
     // > Navhost
     implementation(libs.androidx.navigation.compose)
     // > Icon
     implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.material3)
 
     // > Kotlin serialization
     implementation(libs.kotlinx.serialization.json)
