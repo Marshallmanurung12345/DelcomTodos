@@ -27,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,58 +56,61 @@ fun HomeScreen(
     val uiStateAuth by authViewModel.uiState.collectAsState()
     val uiStateTodo by todoViewModel.uiState.collectAsState()
 
-    var isLoading by remember { mutableStateOf(false) }
-    var isFreshToken by remember { mutableStateOf(false) }
+    var isReady by remember { mutableStateOf(false) }
     var authToken by remember { mutableStateOf<String?>(null) }
     var todos by remember { mutableStateOf<List<ResponseTodoData>>(emptyList()) }
 
+    // Step 1: Load token from prefs on first launch
     LaunchedEffect(Unit) {
-        if (isLoading) return@LaunchedEffect
-        isLoading = true
-        isFreshToken = true
         authViewModel.loadTokenFromPreferences()
     }
 
-    fun onLogout(token: String) {
-        isLoading = true
-        authViewModel.logout(token)
-    }
-
+    // Step 2: React to auth state changes
     LaunchedEffect(uiStateAuth.auth) {
-        if (!isLoading) return@LaunchedEffect
-        if (uiStateAuth.auth !is AuthUIState.Loading) {
-            if (uiStateAuth.auth is AuthUIState.Success) {
-                if (isFreshToken) {
-                    val dataToken = (uiStateAuth.auth as AuthUIState.Success).data
-                    authViewModel.refreshToken(dataToken.authToken, dataToken.refreshToken)
-                    isFreshToken = false
-                } else if (uiStateAuth.authRefreshToken is AuthActionUIState.Success) {
-                    val newToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
-                    if (authToken != newToken) {
-                        authToken = newToken
-                        todoViewModel.getAllTodos(newToken)
-                    }
-                    isLoading = false
+        when (val authState = uiStateAuth.auth) {
+            is AuthUIState.Loading -> { /* tunggu */ }
+            is AuthUIState.Success -> {
+                val token = authState.data.authToken
+                val refresh = authState.data.refreshToken
+                // Jika authRefreshToken belum sukses, lakukan refresh
+                if (uiStateAuth.authRefreshToken !is AuthActionUIState.Success) {
+                    authViewModel.refreshToken(token, refresh)
                 }
-            } else {
-                onLogout("")
+            }
+            is AuthUIState.Error -> {
+                // Token tidak ada / expired → logout
+                authViewModel.logout("")
             }
         }
     }
 
+    // Step 3: Setelah refresh token sukses, ambil todos
+    LaunchedEffect(uiStateAuth.authRefreshToken) {
+        if (uiStateAuth.authRefreshToken is AuthActionUIState.Success) {
+            val newToken = (uiStateAuth.auth as? AuthUIState.Success)?.data?.authToken
+            if (newToken != null && authToken != newToken) {
+                authToken = newToken
+                todoViewModel.getAllTodos(newToken)
+                isReady = true
+            }
+        }
+    }
+
+    // Step 4: Update todos list
     LaunchedEffect(uiStateTodo.todos) {
         if (uiStateTodo.todos is TodosUIState.Success) {
             todos = (uiStateTodo.todos as TodosUIState.Success).data
         }
     }
 
+    // Step 5: Handle logout → navigasi ke login
     LaunchedEffect(uiStateAuth.authLogout) {
         if (uiStateAuth.authLogout !is AuthLogoutUIState.Loading) {
             RouteHelper.to(navController, ConstHelper.RouteNames.AuthLogin.path, true)
         }
     }
 
-    if (isLoading || authToken == null || isFreshToken) {
+    if (!isReady || authToken == null) {
         LoadingUI()
         return
     }
@@ -123,7 +125,7 @@ fun HomeScreen(
             text = "Logout",
             icon = Icons.AutoMirrored.Filled.Logout,
             route = null,
-            onClick = { onLogout(authToken ?: "") }
+            onClick = { authViewModel.logout(authToken ?: "") }
         )
     )
 

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 
     // Add Plugins
     alias(libs.plugins.dagger.hilt.android)
@@ -9,11 +10,7 @@ plugins {
 
 android {
     namespace = "org.delcom.pam_p5_ifs23021"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "org.delcom.pam_p5_ifs23021"
@@ -24,7 +21,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "BASE_URL", "\"https://pam-2026-p5-ifs18005-be.delcom.org:8080/\"")
+        buildConfigField("String", "BASE_URL", "\"https://pam-2026-p5-ifs23021-be.marshalll.fun:8080/\"")
     }
 
     buildTypes {

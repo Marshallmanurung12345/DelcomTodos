@@ -84,7 +84,7 @@ fun TodosScreen(
     val uiStateAuth by authViewModel.uiState.collectAsState()
     val uiStateTodo by todoViewModel.uiState.collectAsState()
 
-    var isLoading by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
     var statusFilter by remember { mutableStateOf(TodoStatusFilter.ALL) }
     var priorityFilter by remember { mutableStateOf(TodoPriorityFilter.ALL) }
@@ -97,10 +97,9 @@ fun TodosScreen(
         else -> null
     }
 
-    fun fetchTodos() {
-        authToken = (uiStateAuth.auth as? AuthUIState.Success)?.data?.authToken ?: return
+    fun fetchTodos(token: String) {
         todoViewModel.getAllTodos(
-            authToken = authToken!!,
+            authToken = token,
             search = searchQuery.text.ifEmpty { null },
             isDone = isDoneParam(),
             priority = priorityFilter.value
@@ -116,31 +115,40 @@ fun TodosScreen(
         )
     }
 
+    // Step 1: Inisialisasi token
     LaunchedEffect(Unit) {
         if (uiStateAuth.auth !is AuthUIState.Success) {
             RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
-        isLoading = true
-        fetchTodos()
+        val token = (uiStateAuth.auth as AuthUIState.Success).data.authToken
+        authToken = token
+        fetchTodos(token)
     }
 
+    // Step 2: Filter berubah → fetch ulang (hanya jika token sudah ada)
     LaunchedEffect(statusFilter, priorityFilter) {
-        if (authToken != null) {
-            isLoading = true
-            fetchTodos()
-        }
+        val token = authToken ?: return@LaunchedEffect
+        isLoading = true
+        fetchTodos(token)
     }
 
+    // Step 3: Update list dari state
     LaunchedEffect(uiStateTodo.todos) {
-        if (uiStateTodo.todos !is TodosUIState.Loading) {
-            isLoading = false
-            todos = if (uiStateTodo.todos is TodosUIState.Success)
-                (uiStateTodo.todos as TodosUIState.Success).data
-            else emptyList()
+        when (val state = uiStateTodo.todos) {
+            is TodosUIState.Success -> {
+                todos = state.data
+                isLoading = false
+            }
+            is TodosUIState.Error -> {
+                todos = emptyList()
+                isLoading = false
+            }
+            is TodosUIState.Loading -> { /* tunggu */ }
         }
     }
 
+    // Step 4: Handle logout
     LaunchedEffect(uiStateAuth.authLogout) {
         if (uiStateAuth.authLogout !is AuthLogoutUIState.Loading) {
             RouteHelper.to(navController, ConstHelper.RouteNames.AuthLogin.path, true)
@@ -177,7 +185,11 @@ fun TodosScreen(
             withSearch = true,
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
-            onSearchAction = { if (authToken != null) { isLoading = true; fetchTodos() } }
+            onSearchAction = {
+                val token = authToken ?: return@TopAppBarComponent
+                isLoading = true
+                fetchTodos(token)
+            }
         )
         Box(modifier = Modifier.weight(1f)) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -305,7 +317,7 @@ fun TodosUI(
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = 80.dp)
     ) {
-        items(todos) { todo -> TodoItemUI(todo, onOpen) }
+        items(todos, key = { it.id }) { todo -> TodoItemUI(todo, onOpen) }
 
         if (isLoadingMore) {
             item {
@@ -380,8 +392,10 @@ fun TodoItemUI(todo: ResponseTodoData, onOpen: (String) -> Unit) {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(if (todo.isDone) MaterialTheme.colorScheme.secondaryContainer
-                            else MaterialTheme.colorScheme.tertiaryContainer)
+                            .background(
+                                if (todo.isDone) MaterialTheme.colorScheme.secondaryContainer
+                                else MaterialTheme.colorScheme.tertiaryContainer
+                            )
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
