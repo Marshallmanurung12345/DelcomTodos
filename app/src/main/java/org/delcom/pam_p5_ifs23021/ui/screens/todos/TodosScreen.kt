@@ -99,11 +99,23 @@ fun TodosScreen(
 
     fun fetchTodos() {
         val token = authToken ?: return
+        // Fetch all todos without filters (client-side filtering will be applied)
         todoViewModel.getAllTodos(
             authToken = token,
             search = searchQuery.text.ifEmpty { null },
-            isDone = isDoneParam(),
-            priority = priorityFilter.value
+            isDone = null, // No longer passing filter to API
+            priority = null // No longer passing filter to API
+        )
+    }
+
+    fun applyFilters() {
+        val token = authToken ?: return
+        val isDoneFilter = isDoneParam()
+        val priorityValue = priorityFilter.value
+        todoViewModel.applyClientSideFilter(
+            authToken = token,
+            isDoneFilter = isDoneFilter,
+            priorityFilter = priorityValue
         )
     }
 
@@ -111,8 +123,8 @@ fun TodosScreen(
         todoViewModel.loadMoreTodos(
             authToken = authToken ?: return,
             search = searchQuery.text.ifEmpty { null },
-            isDone = isDoneParam(),
-            priority = priorityFilter.value
+            isDone = null, // No filter on load more
+            priority = null
         )
     }
 
@@ -126,11 +138,7 @@ fun TodosScreen(
         fetchTodos()
     }
 
-    // Setiap filter berubah, fetch ulang — TANPA isLoading=true agar chip tetap bisa diklik
-    LaunchedEffect(statusFilter, priorityFilter) {
-        if (authToken != null) fetchTodos()
-    }
-
+    // Handle todos state changes - apply filters when data is received
     LaunchedEffect(uiStateTodo.todos) {
         when (val state = uiStateTodo.todos) {
             is TodosUIState.Success -> {
@@ -141,6 +149,13 @@ fun TodosScreen(
                 isInitialLoading = false
             }
             is TodosUIState.Loading -> { /* tunggu */ }
+        }
+    }
+
+    // Apply filters whenever filter state changes (after initial load)
+    LaunchedEffect(statusFilter, priorityFilter, uiStateTodo.allTodos) {
+        if (authToken != null && uiStateTodo.allTodos.isNotEmpty()) {
+            applyFilters()
         }
     }
 

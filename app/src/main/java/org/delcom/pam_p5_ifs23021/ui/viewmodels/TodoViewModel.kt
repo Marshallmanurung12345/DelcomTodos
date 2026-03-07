@@ -61,7 +61,10 @@ data class UIStateTodo(
     val currentPage: Int = 1,
     val hasMoreData: Boolean = true,
     val isLoadingMore: Boolean = false,
-    val allTodos: List<ResponseTodoData> = emptyList()
+    val allTodos: List<ResponseTodoData> = emptyList(),
+    // Client-side filter state
+    val currentStatusFilter: Boolean? = null,
+    val currentPriorityFilter: String? = null
 )
 
 @HiltViewModel
@@ -377,19 +380,43 @@ class TodoViewModel @Inject constructor(
                 )
             }
             _uiState.update { state ->
-                val nextState = result.fold(
+                result.fold(
                     onSuccess = { response: ResponseMessage<String?> ->
                         if (response.status == "success") {
-                            TodoActionUIState.Success(response.message)
+                            // Find and update the item in the local list
+                            val updatedList = state.allTodos.map {
+                                if (it.id == todoId) {
+                                    it.copy(
+                                        title = title,
+                                        description = description,
+                                        isDone = isDone,
+                                        priority = priority,
+                                        // Fake updatedAt so image will refresh
+                                        updatedAt = System.currentTimeMillis().toString()
+                                    )
+                                } else {
+                                    it
+                                }
+                            }
+                            val updatedTodoListState = if (state.todos is TodosUIState.Success) {
+                                TodosUIState.Success(updatedList.sortedByPriority())
+                            } else {
+                                state.todos
+                            }
+
+                            state.copy(
+                                todoChange = TodoActionUIState.Success(response.message),
+                                allTodos = updatedList,
+                                todos = updatedTodoListState
+                            )
                         } else {
-                            TodoActionUIState.Error(response.message)
+                            state.copy(todoChange = TodoActionUIState.Error(response.message))
                         }
                     },
                     onFailure = { error ->
-                        TodoActionUIState.Error(error.message ?: "Unknown error")
+                        state.copy(todoChange = TodoActionUIState.Error(error.message ?: "Unknown error"))
                     }
                 )
-                state.copy(todoChange = nextState)
             }
         }
     }
@@ -441,6 +468,59 @@ class TodoViewModel @Inject constructor(
                 )
                 state.copy(todoDelete = nextState)
             }
+        }
+    }
+
+    /**
+     * Apply client-side filtering to todos
+     * @param isDoneFilter null = all, true = completed, false = not completed
+     * @param priorityFilter null = all, or specific priority (HIGH/MEDIUM/LOW)
+     */
+    fun applyClientSideFilter(
+        authToken: String,
+        isDoneFilter: Boolean?,
+        priorityFilter: String?
+    ) {
+        val currentState = _uiState.value
+        val allTodos = currentState.allTodos
+
+        // Apply filters locally
+        val filteredTodos = allTodos.filter { todo ->
+            val statusMatch = when (isDoneFilter) {
+                null -> true
+                true -> todo.isDone
+                false -> !todo.isDone
+            }
+            val priorityMatch = when (priorityFilter) {
+                null -> true
+                else -> todo.priority?.uppercase() == priorityFilter.uppercase()
+            }
+            statusMatch && priorityMatch
+        }.sortedByPriority()
+
+        _uiState.update { state ->
+            state.copy(
+                todos = TodosUIState.Success(filteredTodos),
+                currentStatusFilter = isDoneFilter,
+                currentPriorityFilter = priorityFilter,
+                hasMoreData = false // Disable pagination when using client-side filter
+            )
+        }
+    }
+
+    /**
+     * Reset filters and show all todos
+     */
+    fun resetFilters(authToken: String) {
+        val currentState = _uiState.value
+        val sorted = currentState.allTodos.sortedByPriority()
+        _uiState.update { state ->
+            state.copy(
+                todos = TodosUIState.Success(sorted),
+                currentStatusFilter = null,
+                currentPriorityFilter = null,
+                hasMoreData = currentState.allTodos.size >= PAGE_SIZE
+            )
         }
     }
 }
