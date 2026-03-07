@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -70,25 +71,25 @@ fun TodosEditScreen(
     val uiStateAuth by authViewModel.uiState.collectAsState()
     val uiStateTodo by todoViewModel.uiState.collectAsState()
 
-    var isLoading by remember { mutableStateOf(false) }
+    // isLoadingData = true hanya saat fetch data awal
+    var isLoadingData by remember { mutableStateOf(true) }
     var todo by remember { mutableStateOf<ResponseTodoData?>(null) }
     var authToken by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        isLoading = true
         if (uiStateAuth.auth !is AuthUIState.Success) {
             RouteHelper.to(navController, ConstHelper.RouteNames.Home.path, true)
             return@LaunchedEffect
         }
         authToken = (uiStateAuth.auth as AuthUIState.Success).data.authToken
         todoViewModel.resetTodoChange()
-        // Jika data todo sudah ada di state (dari DetailScreen), pakai langsung
-        val currentTodo = uiStateTodo.todo
-        if (currentTodo is TodoUIState.Success) {
-            todo = currentTodo.data
-            isLoading = false
+
+        // Kalau data sudah ada dari DetailScreen, langsung pakai
+        val current = uiStateTodo.todo
+        if (current is TodoUIState.Success) {
+            todo = current.data
+            isLoadingData = false
         } else {
-            // Kalau belum ada, fetch dari API
             todoViewModel.getTodoById(authToken!!, todoId)
         }
     }
@@ -97,19 +98,19 @@ fun TodosEditScreen(
         when (val state = uiStateTodo.todo) {
             is TodoUIState.Success -> {
                 todo = state.data
-                isLoading = false
+                isLoadingData = false
             }
             is TodoUIState.Error -> {
-                // Hanya back kalau memang sedang loading (bukan dari reset)
-                if (isLoading) {
-                    isLoading = false
+                if (isLoadingData) {
+                    isLoadingData = false
                     RouteHelper.back(navController)
                 }
             }
-            is TodoUIState.Loading -> { /* tunggu */ }
+            else -> {}
         }
     }
 
+    // Handle hasil simpan — TIDAK pakai isLoadingData agar LaunchedEffect ini tetap aktif
     LaunchedEffect(uiStateTodo.todoChange) {
         when (val state = uiStateTodo.todoChange) {
             is TodoActionUIState.Success -> {
@@ -120,17 +121,19 @@ fun TodosEditScreen(
                     popUpTo = ConstHelper.RouteNames.TodosDetail.path.replace("{todoId}", todoId),
                     removeBackStack = true
                 )
-                isLoading = false
             }
             is TodoActionUIState.Error -> {
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.ERROR, state.message)
-                isLoading = false
             }
             else -> {}
         }
     }
 
-    if (isLoading || todo == null) { LoadingUI(); return }
+    // Hanya show LoadingUI saat data belum ada
+    if (isLoadingData || todo == null) {
+        LoadingUI()
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -146,8 +149,9 @@ fun TodosEditScreen(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             TodosEditUI(
                 todo = todo!!,
+                isSaving = uiStateTodo.todoChange is TodoActionUIState.Loading &&
+                        uiStateTodo.todoChange != TodoActionUIState.Loading, // false by default
                 onSave = { title, description, isDone, priority ->
-                    isLoading = true
                     todoViewModel.putTodo(
                         authToken = authToken!!,
                         todoId = todoId,
@@ -166,13 +170,15 @@ fun TodosEditScreen(
 @Composable
 fun TodosEditUI(
     todo: ResponseTodoData,
+    isSaving: Boolean = false,
     onSave: (String, String, Boolean, String) -> Unit
 ) {
     val alertState = remember { mutableStateOf(AlertState()) }
     var dataTitle by remember { mutableStateOf(todo.title) }
     var dataDescription by remember { mutableStateOf(todo.description) }
     var dataIsDone by remember { mutableStateOf(todo.isDone) }
-    var dataPriority by remember { mutableStateOf(todo.priority.ifEmpty { TodoPriority.LOW.name }) }
+    // Uppercase agar cocok dengan enum name (API bisa kirim "low" atau "LOW")
+    var dataPriority by remember { mutableStateOf(todo.priority.uppercase().ifEmpty { TodoPriority.LOW.name }) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -182,6 +188,7 @@ fun TodosEditUI(
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Title
             OutlinedTextField(
                 value = dataTitle,
                 onValueChange = { dataTitle = it },
@@ -191,6 +198,7 @@ fun TodosEditUI(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next)
             )
 
+            // Status
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text("Status", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,6 +210,7 @@ fun TodosEditUI(
                 }
             }
 
+            // Prioritas
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text("Prioritas", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -209,7 +218,7 @@ fun TodosEditUI(
                     TodoPriority.values().forEach { priority ->
                         val color = priorityColor(priority.name)
                         FilterChip(
-                            selected = dataPriority.uppercase() == priority.name,
+                            selected = dataPriority == priority.name,
                             onClick = { dataPriority = priority.name },
                             label = { Text(priority.label, fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
@@ -221,6 +230,7 @@ fun TodosEditUI(
                 }
             }
 
+            // Deskripsi
             OutlinedTextField(
                 value = dataDescription,
                 onValueChange = { dataDescription = it },
@@ -231,8 +241,10 @@ fun TodosEditUI(
             )
         }
 
+        // FAB Simpan
         FloatingActionButton(
             onClick = {
+                if (isSaving) return@FloatingActionButton
                 if (dataTitle.isEmpty()) {
                     AlertHelper.show(alertState, AlertType.ERROR, "Judul tidak boleh kosong!")
                     return@FloatingActionButton
@@ -244,10 +256,15 @@ fun TodosEditUI(
                 onSave(dataTitle, dataDescription, dataIsDone, dataPriority)
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
+            containerColor = if (isSaving) MaterialTheme.colorScheme.surfaceVariant
+            else MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-            Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan")
+            if (isSaving) {
+                CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(imageVector = Icons.Default.Save, contentDescription = "Simpan")
+            }
         }
     }
 

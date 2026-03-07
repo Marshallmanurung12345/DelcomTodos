@@ -202,10 +202,11 @@ class TodoViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
-                    todos = TodosUIState.Loading,
+                    todos = TodosUIState.Loading, // Pastikan UI loading saat filter berubah
                     currentPage = 1,
                     hasMoreData = true,
-                    allTodos = emptyList()
+                    allTodos = emptyList(), // Hapus daftar lama
+                    isLoadingMore = false
                 )
             }
             val result = runCatching {
