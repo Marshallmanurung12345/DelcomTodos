@@ -101,12 +101,7 @@ fun TodosEditScreen(
         when (val state = uiStateTodo.todoChange) {
             is TodoActionUIState.Success -> {
                 SuspendHelper.showSnackBar(snackbarHost, SuspendHelper.SnackBarType.SUCCESS, state.message)
-                RouteHelper.to(
-                    navController = navController,
-                    destination = ConstHelper.RouteNames.TodosDetail.path.replace("{todoId}", todoId),
-                    popUpTo = ConstHelper.RouteNames.TodosDetail.path.replace("{todoId}", todoId),
-                    removeBackStack = true
-                )
+                RouteHelper.back(navController)
                 isLoading = false
             }
             is TodoActionUIState.Error -> {
@@ -193,8 +188,12 @@ fun TodosEditUI(
                 Text("Prioritas", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TodoPriority.values().forEach { priority ->
-                        val color = priorityColor(priority.name)
+                    TodoPriority.allValues().forEach { priority ->
+                        val color = when(priority) {
+                            TodoPriority.HIGH -> Color(0xFFE53935)
+                            TodoPriority.MEDIUM -> Color(0xFFFB8C00)
+                            TodoPriority.LOW -> Color(0xFF43A047)
+                        }
                         FilterChip(
                             selected = dataPriority.uppercase() == priority.name,
                             onClick = { dataPriority = priority.name },
