@@ -16,8 +16,8 @@ data class ResponseTodo (
 data class ResponseTodoData(
     val id: String = "",
     val userId: String = "",
-    val title: String,
-    val description: String,
+    val title: String = "",
+    val description: String = "",
     val isDone: Boolean = false,
     val priority: String = TodoPriority.LOW.name,
     val cover: String? = null,
